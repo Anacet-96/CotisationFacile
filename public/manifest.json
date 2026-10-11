@@ -1,0 +1,20 @@
+{
+  "name": "Emilio Transports",
+  "short_name": "Emilio",
+  "description": "Plateforme de vente par cotisation journalière",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f9fd",
+  "theme_color": "#421cc8",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+
+}

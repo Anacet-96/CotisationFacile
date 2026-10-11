@@ -1,0 +1,181 @@
+/* ============================================================
+   TAILWIND CSS v4 — Configuration CSS-first
+   Emilio Transports
+   ============================================================ */
+
+@import 'tailwindcss';
+
+/* ---------- DARK MODE : classe .dark sur <html> ---------- */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- THÈME : couleurs, polices, breakpoints ---------- */
+@theme {
+  /* Couleurs primaires */
+  --color-primary-light: #421cc8;
+  --color-primary-dark: #7c5dfa;
+
+  /* Couleurs secondaires */
+  --color-secondary-light: #1f6b45;
+  --color-secondary-dark: #24a568;
+
+  /* Surfaces */
+  --color-surface-light: #f9f9fd;
+  --color-surface-dark: #131313;
+
+  /* Cards */
+  --color-card-light: #ffffff;
+  --color-card-dark: #1c1b1b;
+
+  /* Contenu texte */
+  --color-content-light: #1a1c1f;
+  --color-content-dark: #e5e2e1;
+
+  /* Neutres */
+  --color-muted: #787587;
+  --color-outline: #c9c4d8;
+
+  /* Polices */
+  --font-heading: 'Manrope', sans-serif;
+  --font-body: '"Hanken Grotesk"', sans-serif;
+  --font-mono: '"JetBrains Mono"', monospace;
+
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+}
+
+/* ---------- BASE ---------- */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-surface-light);
+    color: var(--color-content-light);
+    min-height: 100vh;
+    overscroll-behavior-y: none;
+  }
+
+  .dark body {
+    background-color: var(--color-surface-dark);
+    color: var(--color-content-dark);
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+  }
+}
+
+/* ============================================================
+   CLASSES COMPOSANTS — CSS classique (pas @utility)
+   On les utilise directement via className="btn-primary" etc.
+   ============================================================ */
+
+/* ---------- BOUTONS ---------- */
+.btn-primary,
+.btn-secondary,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  min-height: 48px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active {
+  transform: scale(0.98);
+}
+
+/* Primaire */
+.btn-primary {
+  background-color: var(--color-primary-light);
+  color: #fff;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dark .btn-primary {
+  background-color: var(--color-primary-dark);
+}
+
+/* Secondaire */
+.btn-secondary {
+  background-color: var(--color-secondary-light);
+  color: #fff;
+}
+.btn-secondary:hover { opacity: 0.9; }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dark .btn-secondary {
+  background-color: var(--color-secondary-dark);
+}
+
+/* Ghost */
+.btn-ghost {
+  border: 1px solid var(--color-outline);
+  background-color: transparent;
+  color: var(--color-content-light);
+}
+.btn-ghost:hover { background-color: rgba(0, 0, 0, 0.05); }
+
+.dark .btn-ghost {
+  color: var(--color-content-dark);
+}
+.dark .btn-ghost:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ---------- CARD ---------- */
+.card {
+  background-color: var(--color-card-light);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(201, 196, 216, 0.3);
+}
+
+.dark .card {
+  background-color: var(--color-card-dark);
+}
+
+/* ---------- INPUT ---------- */
+.input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-outline);
+  background-color: #fff;
+  padding: 0.75rem 1rem;
+  min-height: 48px;
+  color: var(--color-content-light);
+  transition: all 0.15s;
+}
+
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.dark .input {
+  background-color: var(--color-card-dark);
+  color: var(--color-content-dark);
+}
+.dark .input:focus {
+  box-shadow: 0 0 0 2px var(--color-primary-dark);
+}
+
+/* ---------- CHIFFRES MONOSPACÉS ---------- */
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
