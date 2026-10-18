@@ -101,6 +101,7 @@ export default function NouveauProduit() {
             label="Image du produit"
             value={form.photo_url}
             onChange={url => set('photo_url', url)}
+            folder="products"
           />
 
           <div>
@@ -131,11 +132,10 @@ export default function NouveauProduit() {
                   type="button"
                   key={t.key}
                   onClick={() => set('product_type', t.key)}
-                  className={`text-left p-3 rounded-xl border-2 transition ${
-                    form.product_type === t.key
+                  className={`text-left p-3 rounded-xl border-2 transition ${form.product_type === t.key
                       ? 'border-primary-light dark:border-primary-dark bg-primary-light/10 dark:bg-primary-dark/20'
                       : 'border-outline/40 hover:border-primary-light/40'
-                  }`}
+                    }`}
                 >
                   <p className="font-semibold text-sm">{t.label}</p>
                   <p className="text-xs text-muted mt-0.5">{t.hint}</p>

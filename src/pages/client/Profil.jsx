@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Copy, Check, Lock, LogOut, UserCheck, ShieldQuestion, Phone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockUsers } from '../../lib/mockData';
+import { useMockStore } from '../../lib/mockStore';
 import Header from '../../components/layout/Header';
 import Button from '../../components/ui/Button';
 
@@ -11,8 +11,9 @@ export default function Profil() {
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
   const [msg, setMsg] = useState('');
 
-  const collector = mockUsers.find(u => u.id === user?.collector_id);
-  const secretaire = mockUsers.find(u => u.role === 'secretaire');
+  const store = useMockStore();
+  const collector = store.users.find(u => u.id === user?.collector_id);
+  const secretaire = store.users.find(u => u.role === 'secretaire');
 
   function copyNum() {
     if (!user?.client_number) return;

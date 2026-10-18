@@ -63,12 +63,9 @@ export default function Comptes() {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">Gestion des comptes</p>
             <p className="text-xs text-muted">
-              Attribuez tous les rôles : client, collecteur, secrétaire, admin
+              Attribuez tous les rôles. Les nouveaux comptes clients sont créés par les collecteurs.
             </p>
           </div>
-          <Button className="shrink-0 text-sm" onClick={() => alert('TODO : page de création manuelle (Session Auth)')}>
-            <Plus size={16} /> Créer
-          </Button>
         </div>
 
         {/* Recherche */}

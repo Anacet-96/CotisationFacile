@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { mockUsers } from '../lib/mockData';
+import { supabase } from '../lib/supabaseClient';
 
 const AuthContext = createContext(null);
 
@@ -7,53 +7,142 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Restaure la session depuis localStorage (mock)
-  useEffect(() => {
-    // TODO Supabase : remplacer par supabase.auth.getSession()
-    const stored = localStorage.getItem('emilio_mock_user');
-    if (stored) {
-      try { setUser(JSON.parse(stored)); } catch {}
+  // Charge le profil public.profiles pour un user auth
+  async function loadProfile(authUser) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Auth] Erreur chargement profil :', error);
+      return null;
     }
-    setLoading(false);
+    return data;
+  }
+
+  // Fusionne auth.users + profiles en un seul objet user
+  async function buildUser(authUser) {
+    const profile = await loadProfile(authUser);
+    if (!profile) return null;
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      ...profile,
+    };
+  }
+
+  // Au démarrage : restaurer la session si elle existe
+  useEffect(() => {
+    let mounted = true;
+
+    async function init() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && mounted) {
+          const u = await buildUser(session.user);
+          if (mounted) setUser(u);
+        }
+      } catch (e) {
+        console.error('[Auth] Erreur init :', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    init();
+
+    // Écoute les changements d'état
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+        if (session?.user) {
+          const u = await buildUser(session.user);
+          if (mounted) setUser(u);
+        } else {
+          if (mounted) setUser(null);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-   // MOCK LOGIN — sera remplacé par Supabase Auth
-  // TODO Supabase : remplacer par supabase.auth.signInWithPassword()
+  // ---------- CONNEXION ----------
   async function signIn(email, password) {
-    // ⚠️ On lit depuis le store pour tenir compte des changements de rôle
-    const { getState } = await import('../lib/mockStore');
-    const users = getState().users;
-    const found = users.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!found) {
-      return { error: 'Email ou mot de passe incorrect.' };
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) {
+      return { error: translateError(error.message) };
     }
-    const { password: _pw, ...safeUser } = found;
-    setUser(safeUser);
-    localStorage.setItem('emilio_mock_user', JSON.stringify(safeUser));
-    return { user: safeUser };
+
+    const u = await buildUser(data.user);
+    if (!u) {
+      await supabase.auth.signOut();
+      return { error: 'Profil introuvable. Contactez un administrateur.' };
+    }
+
+    if (u.status === 'rejete') {
+      await supabase.auth.signOut();
+      return { error: 'Votre compte a été rejeté.' };
+    }
+
+    if (u.status === 'en_attente') {
+      await supabase.auth.signOut();
+      return {
+        error:
+          "Votre compte est en attente de validation par la secrétaire. Vous serez notifié dès qu'il sera activé.",
+      };
+    }
+
+    setUser(u);
+    return { user: u };
   }
 
-  // MOCK SIGNUP
-  // TODO Supabase : remplacer par supabase.auth.signUp()
+  // ---------- INSCRIPTION ----------
   async function signUp(payload) {
-    // Simule la création d'un compte client
-    const newUser = {
-      id: `u-${Date.now()}`,
-      role: 'client',
-      client_number: `CT-${String(mockUsers.length + 1).padStart(5, '0')}`,
-      ...payload,
-    };
-    setUser(newUser);
-    localStorage.setItem('emilio_mock_user', JSON.stringify(newUser));
-    return { user: newUser };
+    const { email, password, name, phone, city, district, profession, status } = payload;
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          name,
+          phone,
+          city,
+          district,
+          profession: profession || null,
+          role: 'client',
+          status: status || 'actif',
+        },
+      },
+    });
+
+    if (error) {
+      return { error: translateError(error.message) };
+    }
+
+    if (data.session) {
+      const u = await buildUser(data.user);
+      setUser(u);
+      return { user: u };
+    }
+
+    return { needsConfirmation: true };
   }
 
+  // ---------- DÉCONNEXION ----------
   async function signOut() {
-    // TODO Supabase : remplacer par supabase.auth.signOut()
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('emilio_mock_user');
   }
 
   const value = {
@@ -73,4 +162,15 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth doit être utilisé dans AuthProvider');
   return ctx;
+}
+
+// Traduit les messages d'erreur Supabase en français
+function translateError(msg) {
+  if (!msg) return 'Erreur inconnue.';
+  if (msg.includes('Invalid login credentials')) return 'Email ou mot de passe incorrect.';
+  if (msg.includes('Email not confirmed')) return 'Veuillez confirmer votre email avant de vous connecter.';
+  if (msg.includes('User already registered')) return 'Cet email est déjà utilisé.';
+  if (msg.includes('Password should be at least')) return 'Le mot de passe doit contenir au moins 6 caractères.';
+  if (msg.includes('Unable to validate email')) return 'Adresse email invalide.';
+  return msg;
 }

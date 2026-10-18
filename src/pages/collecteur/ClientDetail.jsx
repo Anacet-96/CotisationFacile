@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Phone, MapPin, Briefcase,
-  Lock, Check, Plus, AlertCircle, Clock,
+  Lock, Check, Plus, AlertCircle, Clock, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useMockStore, fillCardDays, activateCard, addProfileChangeRequest, addNotification } from '../../lib/mockStore';
@@ -23,25 +23,22 @@ export default function ClientDetail() {
   const { user } = useAuth();
   const store = useMockStore();
 
-  // ---------- Blocage ----------
   const blockInfo = user
-    ? isCollectorBlocked(user.id, store.cards, store.dailyValidations)
-    : { blocked: false };
+  ? isCollectorBlocked(user.id, store.cards, store.dailyValidations, store.cardDays)
+  : { blocked: false };
   const blocked = blockInfo.blocked;
 
-  // ---------- Client ----------
   const client = user
     ? store.users.find(u => u.id === id && u.collector_id === user.id) || null
     : null;
 
-  // ---------- States locaux ----------
   const [editOpen, setEditOpen] = useState(false);
-  const [pendingDays, setPendingDays] = useState({}); // { [cardId]: Set<number> }
-  const [validerModal, setValiderModal] = useState(null); // { card, count }
-  const [activerModal, setActiverModal] = useState(null); // { card }
+  const [pendingDays, setPendingDays] = useState({});
+  const [validerModal, setValiderModal] = useState(null);
+  const [activerModal, setActiverModal] = useState(null);
   const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // ---------- Dérivés ----------
   const clientCards = useMemo(
     () => (id ? store.cards.filter(c => c.client_id === id) : []),
     [store.cards, id]
@@ -56,7 +53,6 @@ export default function ClientDetail() {
     [client, store.profileChangeRequests]
   );
 
-  // ---------- Client introuvable ----------
   if (!client) {
     return (
       <>
@@ -76,7 +72,6 @@ export default function ClientDetail() {
     );
   }
 
-  // ---------- Helpers ----------
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -99,19 +94,16 @@ export default function ClientDetail() {
     setValiderModal({ card, count });
   }
 
-  // ---------- Validation des mises ----------
-  function confirmValider() {
-    if (!validerModal?.card) return;
+  async function confirmValider() {
+    if (!validerModal?.card || loading) return;
+    setLoading(true);
     const { card, count } = validerModal;
     const selectedDays = Array.from(pendingDays[card.id] || []);
     const product = store.products.find(p => p.id === card.product_id);
 
-    // TODO Supabase : UPDATE card_days SET filled=true, filled_at=now, filled_by=user.id
-    //                WHERE card_id=card.id AND day_number IN (selectedDays)
-    fillCardDays(card.id, selectedDays, user.id);
+    await fillCardDays(card.id, selectedDays, user.id);
 
-    // 1 notification PAR carte signée (règle métier : signer 2 cartes = 2 messages)
-    addNotification({
+    await addNotification({
       userId: client.id,
       type: 'mise_confirmee',
       message: `${product?.name} · Votre collecteur ${user.name} a confirmé ${count} mise${count > 1 ? 's' : ''} (${formatFCFA(count * card.locked_price_per_day)}).`,
@@ -120,19 +112,19 @@ export default function ClientDetail() {
 
     setPendingDays(prev => ({ ...prev, [card.id]: new Set() }));
     setValiderModal(null);
+    setLoading(false);
     showToast(`✅ ${count} mise${count > 1 ? 's' : ''} validée${count > 1 ? 's' : ''} pour ${client.name}`);
   }
 
-  // ---------- Activation carte ----------
-  function confirmActiver() {
-    if (!activerModal?.card) return;
+  async function confirmActiver() {
+    if (!activerModal?.card || loading) return;
+    setLoading(true);
     const card = activerModal.card;
     const product = store.products.find(p => p.id === card.product_id);
 
-    // TODO Supabase : UPDATE cards + INSERT card_fees + INSERT notifications
-    activateCard(card.id, user.id);
+    await activateCard(card.id, user.id);
 
-    addNotification({
+    await addNotification({
       userId: client.id,
       type: 'adhesion_validee',
       message: `Votre adhésion pour ${product?.name} a été validée. Bonne cotisation !`,
@@ -140,15 +132,41 @@ export default function ClientDetail() {
     });
 
     setActiverModal(null);
+    setLoading(false);
     showToast('✅ Carte activée. Frais 200 FCFA enregistrés.');
   }
 
-  // ---------- Rendu ----------
+  async function handleSaveProfile() {
+    if (loading) return;
+    setLoading(true);
+
+    await addProfileChangeRequest({
+      collector_id: user.id,
+      client_id: client.id,
+      field_name: 'profile',
+      old_value: null,
+      new_value: 'modification',
+    });
+
+    const admins = store.users.filter(u => u.role === 'admin');
+    for (const admin of admins) {
+      await addNotification({
+        userId: admin.id,
+        type: 'modification_client_demandee',
+        message: `${user.name} propose une modification du profil de ${client.name}. En attente d'approbation.`,
+        link: '/admin/demandes',
+      });
+    }
+
+    setEditOpen(false);
+    setLoading(false);
+    showToast("📤 Modification envoyée pour approbation à l'admin.");
+  }
+
   return (
     <>
       <Header title={client.name} />
 
-      {/* Toast feedback */}
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90%]">
           <div className="rounded-xl bg-secondary-light dark:bg-secondary-dark text-white px-4 py-3 shadow-lg text-sm font-medium">
@@ -159,14 +177,10 @@ export default function ClientDetail() {
 
       <div className="p-4 max-w-lg mx-auto lg:max-w-6xl space-y-4">
 
-        <button
-          onClick={() => nav(-1)}
-          className="flex items-center gap-2 text-sm text-muted"
-        >
+        <button onClick={() => nav(-1)} className="flex items-center gap-2 text-sm text-muted">
           <ArrowLeft size={16} /> Retour
         </button>
 
-        {/* ---------- Infos client ---------- */}
         <div className="card">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0">
@@ -198,21 +212,10 @@ export default function ClientDetail() {
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 mb-2">
                 <Clock size={14} /> {pendingRequests.length} modification(s) en attente d'approbation
               </p>
-              {pendingRequests.map(r => (
-                <div key={r.id} className="text-xs text-muted flex items-center gap-2">
-                  <span className="capitalize font-semibold">{r.field_name}</span>
-                  <span>{r.old_value || '—'}</span>
-                  <span>→</span>
-                  <span className="font-semibold text-content-light dark:text-content-dark">
-                    {r.new_value}
-                  </span>
-                </div>
-              ))}
             </div>
           )}
         </div>
 
-        {/* ---------- Cartes ---------- */}
         <div className="flex items-center justify-between">
           <h3 className="font-heading font-bold text-lg">
             Ses cartes <span className="text-muted font-normal text-sm">({clientCards.length})</span>
@@ -240,7 +243,6 @@ export default function ClientDetail() {
           </div>
         )}
 
-        {/* Grille — 1 / 2 / 3 colonnes */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clientCards.map(card => (
             <EditableCard
@@ -257,38 +259,14 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      {/* ---------- Modal édition infos client ---------- */}
       <EditClientModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
         client={client}
-        onSave={() => {
-          // TODO Supabase : INSERT profile_change_requests
-          addProfileChangeRequest({
-            collector_id: user.id,
-            client_id: client.id,
-            field_name: 'profile',
-            old_value: null,
-            new_value: 'modification',
-          });
-
-          // Notif à l'admin (tous les admins)
-          const admins = store.users.filter(u => u.role === 'admin');
-          admins.forEach(admin => {
-            addNotification({
-              userId: admin.id,
-              type: 'modification_client_demandee',
-              message: `${user.name} propose une modification du profil de ${client.name}. En attente d'approbation.`,
-              link: '/admin',
-            });
-          });
-
-          setEditOpen(false);
-          showToast("📤 Modification envoyée pour approbation à l'admin.");
-        }}
+        loading={loading}
+        onSave={handleSaveProfile}
       />
 
-      {/* ---------- Modal validation mises ---------- */}
       {validerModal && validerModal.card && (
         <ValiderMisesModal
           open
@@ -298,25 +276,23 @@ export default function ClientDetail() {
           product={store.products.find(p => p.id === validerModal.card.product_id)}
           count={validerModal.count}
           pricePerDay={validerModal.card.locked_price_per_day}
+          loading={loading}
         />
       )}
 
-      {/* ---------- Modal activation carte ---------- */}
       {activerModal && activerModal.card && (
         <ActiverCarteModal
           open
           onClose={() => setActiverModal(null)}
           onConfirm={confirmActiver}
           client={client}
+          loading={loading}
         />
       )}
     </>
   );
 }
 
-// ============================================================
-// Composant : ligne d'info
-// ============================================================
 function InfoRow({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-2">
@@ -329,20 +305,7 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-// ============================================================
-// Composant : carte éditable (avec grille 31 cliquable)
-// ============================================================
 function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, onActiver }) {
-  // ⚠️ Hooks DOIVENT être appelés avant tout return conditionnel.
-  // On ne peut pas utiliser useMockStore ici car EditableCard reçoit déjà tout par props.
-  const product = allDays && card
-    ? null // évitons d'appeler un hook ici
-    : null;
-  void product;
-
-  // Reprend le product depuis un contexte implicite — ici on utilise le store via un hook safe :
-  // On utilise plutôt les props reçues : le parent nous donne "allDays" déjà enrichi.
-  // Le product est récupéré via un useMockStore (acceptable car le composant est toujours rendu).
   const store = useMockStore();
   const prod = store.products.find(p => p.id === card.product_id);
   const isYear = prod?.product_type === '1_an';
@@ -354,7 +317,6 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
   const finalCount = filledCount + pendingCount;
   const percent = Math.round((finalCount / days.length) * 100);
 
-  // ---------- Carte en attente d'activation ----------
   if (card.status === 'en_attente') {
     return (
       <div className="card flex flex-col gap-3 border-2 border-amber-500/30">
@@ -370,19 +332,13 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
         <div className="rounded-xl bg-black/5 dark:bg-white/5 p-3 text-xs text-muted">
           Le client n'a pas encore payé les frais de carte (200 FCFA). Activez la carte dès réception.
         </div>
-        <Button
-          className="w-full"
-          disabled={blocked}
-          onClick={onActiver}
-          title={blocked ? 'Journée précédente non validée' : ''}
-        >
+        <Button className="w-full" disabled={blocked} onClick={onActiver}>
           <Check size={16} /> Activer la carte
         </Button>
       </div>
     );
   }
 
-  // ---------- Carte active ou terminée ----------
   const isTermine = card.status === 'termine';
 
   return (
@@ -430,7 +386,6 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
         className="w-full text-sm"
         disabled={blocked || pendingCount === 0}
         onClick={onValider}
-        title={blocked ? 'Journée précédente non validée' : ''}
       >
         <Check size={16} /> Valider les mises {pendingCount > 0 && `(${pendingCount})`}
       </Button>
@@ -438,10 +393,7 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
   );
 }
 
-// ============================================================
-// Modal : édition informations client
-// ============================================================
-function EditClientModal({ open, onClose, client, onSave }) {
+function EditClientModal({ open, onClose, client, onSave, loading }) {
   const [form, setForm] = useState({
     firstname: (client?.name || '').split(' ')[0] || '',
     lastname: (client?.name || '').split(' ').slice(1).join(' ') || '',
@@ -459,14 +411,15 @@ function EditClientModal({ open, onClose, client, onSave }) {
       title="Modifier les informations"
       footer={
         <>
-          <Button variant="ghost" className="flex-1" onClick={onClose}>Annuler</Button>
-          <Button className="flex-1" onClick={onSave}>Envoyer pour approbation</Button>
+          <Button variant="ghost" className="flex-1" onClick={onClose} disabled={loading}>Annuler</Button>
+          <Button className="flex-1" onClick={onSave} disabled={loading}>
+            {loading ? <Loader2 size={16} className="animate-spin" /> : 'Envoyer pour approbation'}
+          </Button>
         </>
       }
     >
       <p className="text-xs text-muted mb-4">
         Toute modification sera <b>envoyée à l'administrateur</b> pour approbation.
-        Les anciennes valeurs restent affichées jusque-là.
       </p>
 
       <div className="space-y-3">

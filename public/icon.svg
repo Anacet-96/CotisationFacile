@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="32" fill="#421cc8"/>
-  <text x="96" y="132" font-size="110" font-weight="800" font-family="Manrope, sans-serif" text-anchor="middle" fill="white">E</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#421cc8"/>
+  <text x="256" y="360" font-size="300" font-weight="800" font-family="sans-serif" text-anchor="middle" fill="white">E</text>
 </svg>

@@ -1,24 +1,28 @@
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Users, UserPlus, Phone, MapPin, ArrowRight, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockCards, mockCardDays, mockDailyValidations, mockProducts, mockUsers } from '../../lib/mockData';
-import { getCollectorClients, getCollectorCards, getCollectorDayStats } from '../../lib/collectorHelpers';
+import { useMockStore } from '../../lib/mockStore';
+import { getCollectorClients, getCollectorDayStats } from '../../lib/collectorHelpers';
 import { formatFCFA, cx } from '../../lib/helpers';
 import Header from '../../components/layout/Header';
 import Badge from '../../components/ui/Badge';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { blocked } = useOutletContext() || {};
+  const store = useMockStore();
   const firstname = (user?.name || '').split(' ')[0];
 
-  const clients = getCollectorClients(user.id, mockUsers);
-  const myCards = getCollectorCards(user.id, mockCards);
-  const stats = getCollectorDayStats(user.id, mockCards, mockCardDays, mockProducts, mockUsers);
+  const clients = getCollectorClients(user.id, store.users);
+  const stats = getCollectorDayStats(
+    user.id,
+    store.cards,
+    store.cardDays,
+    store.products,
+    store.users
+  );
 
-  // Statut du jour : validée hier ou pas
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const yesterdayValidated = mockDailyValidations.some(
+  const yesterdayValidated = store.dailyValidations.some(
     v => v.collector_id === user.id && v.date === yesterday
   );
 
@@ -50,7 +54,7 @@ export default function Dashboard() {
             </div>
             <div className="text-right">
               <p className="text-[10px] font-semibold opacity-70 uppercase tracking-wide">
-                Total encaissé aujourd'hui
+                Encaissé aujourd'hui
               </p>
               <p className="font-mono font-extrabold text-lg">{formatFCFA(stats.total)}</p>
             </div>
@@ -80,10 +84,7 @@ export default function Dashboard() {
             </h3>
             <Link
               to="/collecteur/nouveau-client"
-              className={cx(
-                'text-sm font-semibold flex items-center gap-1 text-primary-light dark:text-primary-dark',
-                blocked && 'opacity-50 pointer-events-none'
-              )}
+              className="text-sm font-semibold flex items-center gap-1 text-primary-light dark:text-primary-dark"
             >
               <UserPlus size={16} /> Nouveau
             </Link>
@@ -95,9 +96,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {clients.map(c => {
-              const cCards = mockCards.filter(card => card.client_id === c.id);
+              const cCards = store.cards.filter(card => card.client_id === c.id);
               const activeCards = cCards.filter(card => card.status === 'actif').length;
               const pendingCards = cCards.filter(card => card.status === 'en_attente').length;
               return (

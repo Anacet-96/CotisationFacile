@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Minus, Plus, Boxes } from 'lucide-react';
+import { ArrowLeft, Check, Minus, Plus, Boxes, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useMockStore, addCard, addNotification } from '../../lib/mockStore';
 import { formatFCFA } from '../../lib/helpers';
@@ -14,15 +14,12 @@ export default function KitPanier() {
   const store = useMockStore();
 
   const product = store.products.find(p => p.id === id && p.product_type === 'kit');
-  const [selection, setSelection] = useState({}); // { [itemId]: quantity }
+  const [selection, setSelection] = useState({});
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Items appartenant à ce kit uniquement
   const items = useMemo(
-    () =>
-      store.kitItems.filter(
-        i => i.is_active && (i.kit_ids || []).includes(id)
-      ),
+    () => store.kitItems.filter(i => i.is_active && (i.kit_ids || []).includes(id)),
     [store.kitItems, id]
   );
 
@@ -56,14 +53,16 @@ export default function KitPanier() {
     });
   }
 
-  function valider() {
-    if (cartCount === 0) return;
+  async function valider() {
+    if (cartCount === 0 || loading) return;
 
     const collectorId = user?.collector_id;
     if (!collectorId) {
       alert('Aucun collecteur ne vous est encore assigné.');
       return;
     }
+
+    setLoading(true);
 
     const composition = items
       .filter(i => selection[i.id])
@@ -73,8 +72,7 @@ export default function KitPanier() {
         price: i.price,
       }));
 
-    // TODO Supabase : INSERT card avec product_type='kit' + INSERT kit_compositions
-    const newCard = addCard({
+    const newCard = await addCard({
       clientId: user.id,
       product,
       collectorId,
@@ -82,13 +80,20 @@ export default function KitPanier() {
       kitComposition: composition,
     });
 
-    addNotification({
+    if (!newCard) {
+      setLoading(false);
+      alert("Erreur lors de la création. Regarde la console.");
+      return;
+    }
+
+    await addNotification({
       userId: collectorId,
       type: 'nouvelle_demande_client',
       message: `${user.name} a composé un ${product.name} (${cartCount} article${cartCount > 1 ? 's' : ''}, mise ${formatFCFA(miseJour)}/j). À valider.`,
       link: `/collecteur/client/${user.id}`,
     });
 
+    setLoading(false);
     setDone(true);
   }
 
@@ -194,7 +199,6 @@ export default function KitPanier() {
         </div>
       </div>
 
-      {/* Récap sticky */}
       <div className="fixed bottom-4 inset-x-4 lg:left-auto lg:right-6 lg:w-96 max-w-lg mx-auto lg:mx-0 bg-card-light dark:bg-card-dark border border-outline/40 rounded-2xl p-4 shadow-2xl z-40">
         <div className="flex justify-between text-sm mb-1">
           <span className="text-muted">Articles</span>
@@ -210,8 +214,8 @@ export default function KitPanier() {
             {formatFCFA(miseJour)}/jour
           </span>
         </div>
-        <Button className="w-full" disabled={cartCount === 0} onClick={valider}>
-          <Check size={18} /> Valider mon kit
+        <Button className="w-full" disabled={cartCount === 0 || loading} onClick={valider}>
+          {loading ? <Loader2 size={18} className="animate-spin" /> : <><Check size={18} /> Valider mon kit</>}
         </Button>
       </div>
     </>

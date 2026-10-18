@@ -1,31 +1,40 @@
-import { useRef } from 'react';
-import { Image as ImageIcon, X, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Image as ImageIcon, X, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { uploadImage } from '../../lib/storage';
 
-// Lit un File et retourne une data URL (persiste en mémoire)
-function readAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-export default function ImageUpload({ value, onChange, label = 'Image', className = '' }) {
+export default function ImageUpload({
+  value,
+  onChange,
+  label = 'Image',
+  folder = 'misc',
+  className = '',
+}) {
   const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    // TODO Supabase : upload dans Storage bucket "product-images", récupérer public URL
-    const dataUrl = await readAsDataURL(file);
-    onChange(dataUrl);
+
+    setErr('');
+    setUploading(true);
+
+    const { url, error } = await uploadImage(file, folder);
+
+    setUploading(false);
     e.target.value = '';
+
+    if (error) {
+      setErr(error);
+      return;
+    }
+    onChange(url);
   }
 
   function clear() {
     onChange(null);
+    setErr('');
   }
 
   return (
@@ -47,23 +56,39 @@ export default function ImageUpload({ value, onChange, label = 'Image', classNam
       ) : (
         <button
           type="button"
+          disabled={uploading}
           onClick={() => inputRef.current?.click()}
-          className="w-full aspect-video rounded-xl border-2 border-dashed border-outline flex flex-col items-center justify-center gap-2 hover:border-primary-light dark:hover:border-primary-dark transition text-muted"
+          className="w-full aspect-video rounded-xl border-2 border-dashed border-outline flex flex-col items-center justify-center gap-2 hover:border-primary-light dark:hover:border-primary-dark transition text-muted disabled:opacity-60"
         >
-          <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
-            <ImageIcon size={24} />
-          </div>
-          <span className="text-xs font-semibold flex items-center gap-1.5">
-            <Upload size={14} /> Choisir une image
-          </span>
-          <span className="text-[10px]">PNG, JPG — max 5 MB</span>
+          {uploading ? (
+            <>
+              <Loader2 size={28} className="animate-spin text-primary-light dark:text-primary-dark" />
+              <span className="text-xs font-semibold">Upload en cours…</span>
+            </>
+          ) : (
+            <>
+              <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                <ImageIcon size={24} />
+              </div>
+              <span className="text-xs font-semibold flex items-center gap-1.5">
+                <Upload size={14} /> Choisir une image
+              </span>
+              <span className="text-[10px]">PNG, JPG — max 5 MB</span>
+            </>
+          )}
         </button>
+      )}
+
+      {err && (
+        <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+          <AlertCircle size={12} /> {err}
+        </p>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/gif"
         className="hidden"
         onChange={handleFile}
       />

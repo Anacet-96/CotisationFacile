@@ -1,365 +1,235 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Plus, Package, ShoppingBasket, Pencil, Power, Search,
-  Boxes,
-} from 'lucide-react';
-import {
-  useMockStore, toggleProductActive, toggleKitItemActive,
-  addProduct, updateProduct, addKitItem, updateKitItem,
-} from '../../lib/mockStore';
-import { formatFCFA, productTypeLabel, cx } from '../../lib/helpers';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Save, Power, Trash2, Loader2 } from 'lucide-react';
+import { useMockStore, updateProduct, toggleProductActive } from '../../lib/mockStore';
+import { productTypeLabel, cx } from '../../lib/helpers';
 import Header from '../../components/layout/Header';
+import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import ImageUpload from '../../components/ui/ImageUpload';
 import ProductImage from '../../components/ui/ProductImage';
-import KitFormModal from '../../components/admin/KitFormModal';
-import KitItemFormModal from '../../components/admin/KitItemFormModal';
 
-const TABS = [
-  { key: 'produits', label: 'Produits', icon: Package },
-  { key: 'kits', label: 'Kits', icon: ShoppingBasket },
-  { key: 'items', label: 'Items de kit', icon: Boxes },
+const TYPES = [
+  { key: '1_mois', label: '1 mois' },
+  { key: '1_an', label: '1 an' },
 ];
 
-export default function Produits() {
+export default function ProduitDetail() {
+  const { id } = useParams();
+  const nav = useNavigate();
   const store = useMockStore();
-  const [tab, setTab] = useState('produits');
-  const [query, setQuery] = useState('');
-  const [kitModal, setKitModal] = useState({ open: false, kit: null });
-  const [itemModal, setItemModal] = useState({ open: false, item: null });
+  const product = store.products.find(p => p.id === id);
 
-  const produits = store.products.filter(p => {
-    if (p.product_type === 'kit') return false;
-    if (!query.trim()) return true;
-    return p.name.toLowerCase().includes(query.toLowerCase());
-  });
+  const [form, setForm] = useState(() => ({
+    name: product?.name || '',
+    description: product?.description || '',
+    price_per_day: product?.price_per_day || 0,
+    product_type: product?.product_type || '1_mois',
+    is_active: product?.is_active ?? true,
+    photo_url: product?.photo_url || null,
+  }));
+  const [toast, setToast] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const kits = store.products.filter(p => {
-    if (p.product_type !== 'kit') return false;
-    if (!query.trim()) return true;
-    return p.name.toLowerCase().includes(query.toLowerCase());
-  });
-
-  const kitItems = store.kitItems.filter(i => {
-    if (!query.trim()) return true;
-    return i.name.toLowerCase().includes(query.toLowerCase());
-  });
-
-  function handleSaveKit(data) {
-    if (kitModal.kit) {
-      updateProduct(kitModal.kit.id, {
-        name: data.name,
-        description: data.description,
-        photo_url: data.photo_url,
-      });
-    } else {
-      addProduct({
-        name: data.name,
-        description: data.description,
-        photo_url: data.photo_url,
-        price_per_day: 0,
-        duration_days: 31,
-        product_type: 'kit',
-        is_active: true,
-      });
-    }
-    setKitModal({ open: false, kit: null });
+  if (!product) {
+    return (
+      <>
+        <Header title="Produit" />
+        <div className="p-4 max-w-lg mx-auto space-y-4">
+          <Link to="/admin/produits" className="flex items-center gap-2 text-sm text-muted">
+            <ArrowLeft size={16} /> Retour
+          </Link>
+          <div className="card text-center py-8">
+            <p className="text-muted mb-4">Produit introuvable.</p>
+            <Link to="/admin/produits" className="btn-primary inline-flex">Retour</Link>
+          </div>
+        </div>
+      </>
+    );
   }
 
-  function handleSaveItem(data) {
-    if (itemModal.item) {
-      updateKitItem(itemModal.item.id, data);
-    } else {
-      addKitItem({ ...data, is_active: true });
-    }
-    setItemModal({ open: false, item: null });
+  if (product.product_type === 'kit') {
+    return (
+      <>
+        <Header title="Produit" />
+        <div className="p-4 max-w-lg mx-auto space-y-4">
+          <Link to="/admin/produits" className="flex items-center gap-2 text-sm text-muted">
+            <ArrowLeft size={16} /> Retour
+          </Link>
+          <div className="card text-center py-8">
+            <p className="text-muted mb-4">Les kits se gèrent depuis l'onglet "Kits".</p>
+            <Link to="/admin/produits" className="btn-primary inline-flex">Retour aux produits</Link>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  async function save() {
+    if (loading) return;
+    setLoading(true);
+    await updateProduct(product.id, {
+      name: form.name,
+      description: form.description,
+      price_per_day: parseInt(form.price_per_day, 10) || 0,
+      product_type: form.product_type,
+      is_active: form.is_active,
+      photo_url: form.photo_url,
+    });
+    setLoading(false);
+    showToast('✅ Produit enregistré.');
+  }
+
+  async function handleDeactivate() {
+    if (loading) return;
+    setLoading(true);
+    await toggleProductActive(product.id);
+    setLoading(false);
+    nav('/admin/produits');
   }
 
   return (
     <>
-      <Header title="Produits & Kits" />
-      <div className="p-4 max-w-lg mx-auto lg:max-w-6xl space-y-4">
+      <Header title={product.name} />
 
-        {/* Tabs */}
-        <div className="flex gap-2">
-          {TABS.map(t => {
-            const Icon = t.icon;
-            const count =
-              t.key === 'produits' ? store.products.filter(p => p.product_type !== 'kit').length
-              : t.key === 'kits' ? store.products.filter(p => p.product_type === 'kit').length
-              : store.kitItems.length;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={cx(
-                  'flex-1 px-2 py-3 rounded-xl text-xs sm:text-sm font-semibold transition min-h-[48px] flex items-center justify-center gap-1.5',
-                  tab === t.key
-                    ? 'bg-primary-light dark:bg-primary-dark text-white'
-                    : 'bg-black/5 dark:bg-white/10 text-muted'
-                )}
-              >
-                <Icon size={14} />
-                <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.label.split(' ')[0]}</span>
-                <span className={cx(
-                  'text-[10px] font-bold rounded-full px-1.5 py-0.5',
-                  tab === t.key ? 'bg-white/20' : 'bg-black/10 dark:bg-white/10'
-                )}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+      {toast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90%]">
+          <div className="rounded-xl bg-secondary-light dark:bg-secondary-dark text-white px-4 py-3 shadow-lg text-sm font-medium">
+            {toast}
+          </div>
+        </div>
+      )}
+
+      <div className="p-4 max-w-lg mx-auto space-y-4">
+        <button onClick={() => nav(-1)} className="flex items-center gap-2 text-sm text-muted">
+          <ArrowLeft size={16} /> Retour
+        </button>
+
+        {/* Aperçu */}
+        <div className="card">
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <Badge color={product.is_active ? 'success' : 'danger'}>
+              {product.is_active ? 'Actif' : 'Désactivé'}
+            </Badge>
+            <Badge color="primary">{productTypeLabel(form.product_type)}</Badge>
+          </div>
+          <ProductImage product={form} />
         </div>
 
-        {/* Recherche */}
-        <div className="relative">
-          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-          <input
-            className="input pl-11"
-            placeholder="Rechercher…"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
+        {/* Formulaire */}
+        <div className="card space-y-4">
+          <ImageUpload
+            label="Image du produit"
+            value={form.photo_url}
+            onChange={url => set('photo_url', url)}
+            folder="products"
           />
-        </div>
 
-        {/* ---------- PRODUITS ---------- */}
-        {tab === 'produits' && (
-          <>
-            <Link to="/admin/nouveau-produit" className="btn-primary w-full">
-              <Plus size={18} /> Nouveau produit
-            </Link>
+          <div>
+            <label className="text-xs font-semibold text-muted">Nom *</label>
+            <input className="input mt-1" value={form.name} onChange={e => set('name', e.target.value)} />
+          </div>
 
-            {produits.length === 0 && (
-              <div className="card text-center py-10">
-                <Package size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">Aucun produit.</p>
-              </div>
-            )}
+          <div>
+            <label className="text-xs font-semibold text-muted">Description *</label>
+            <textarea
+              className="input mt-1 min-h-[80px] resize-none"
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+            />
+          </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {produits.map(p => (
-                <div key={p.id} className={cx('card flex flex-col gap-3', !p.is_active && 'opacity-60')}>
-                  <div className="flex items-start justify-between gap-2">
-                    <Badge color="primary">{productTypeLabel(p.product_type)}</Badge>
-                    {!p.is_active && <Badge color="danger">Désactivé</Badge>}
-                  </div>
-
-                  <ProductImage product={p} />
-
-                  <div>
-                    <h3 className="font-heading font-bold truncate">{p.name}</h3>
-                    <p className="text-xs text-muted line-clamp-2 mt-1">{p.description}</p>
-                  </div>
-
-                  <p className="font-mono font-bold text-lg">
-                    {formatFCFA(p.price_per_day)}
-                    <span className="text-xs text-muted font-body"> / jour</span>
-                  </p>
-
-                  <div className="flex gap-2 mt-auto">
-                    <Link to={`/admin/produit/${p.id}`} className="btn-ghost flex-1 text-sm">
-                      <Pencil size={14} /> Modifier
-                    </Link>
-                    <button
-                      onClick={() => toggleProductActive(p.id)}
-                      className={cx(
-                        'p-3 rounded-xl border min-h-[48px] min-w-[48px] flex items-center justify-center transition',
-                        p.is_active
-                          ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
-                          : 'border-secondary-light/30 text-secondary-light hover:bg-secondary-light/10'
-                      )}
-                      title={p.is_active ? 'Désactiver' : 'Activer'}
-                    >
-                      <Power size={18} />
-                    </button>
-                  </div>
-                </div>
+          <div>
+            <label className="text-xs font-semibold text-muted">Type</label>
+            <div className="flex gap-2 mt-1">
+              {TYPES.map(t => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => set('product_type', t.key)}
+                  className={cx(
+                    'flex-1 px-3 py-2 rounded-xl text-sm font-semibold transition border-2',
+                    form.product_type === t.key
+                      ? 'border-primary-light dark:border-primary-dark bg-primary-light/10 dark:bg-primary-dark/20 text-primary-light dark:text-primary-dark'
+                      : 'border-outline/40 text-muted'
+                  )}
+                >
+                  {t.label}
+                </button>
               ))}
             </div>
-          </>
-        )}
+          </div>
 
-        {/* ---------- KITS ---------- */}
-        {tab === 'kits' && (
-          <>
-            <button
-              onClick={() => setKitModal({ open: true, kit: null })}
-              className="btn-primary w-full"
-            >
-              <Plus size={18} /> Ajouter un kit
-            </button>
+          <div>
+            <label className="text-xs font-semibold text-muted">Prix/jour (FCFA)</label>
+            <div className="relative mt-1">
+              <input
+                className="input pr-16"
+                type="number"
+                value={form.price_per_day}
+                onChange={e => set('price_per_day', e.target.value)}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted font-mono">
+                FCFA
+              </span>
+            </div>
+          </div>
 
-            <div className="card">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={e => set('is_active', e.target.checked)}
+              className="w-4 h-4 accent-primary-light dark:accent-primary-dark"
+            />
+            <span className="text-sm">Produit actif (visible côté client)</span>
+          </label>
+
+          <Button className="w-full" onClick={save} disabled={loading}>
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <><Save size={16} /> Enregistrer</>}
+          </Button>
+        </div>
+
+        {/* Zone danger */}
+        <div className="card border-2 border-red-500/30">
+          <h3 className="font-heading font-bold mb-2 text-red-500">Zone dangereuse</h3>
+          {confirmDelete ? (
+            <div className="space-y-2">
               <p className="text-xs text-muted">
-                Les kits apparaissent côté client avec la mention <b>Kit ravitaillement</b>.
-                Le client compose ensuite son panier avec les <b>items de kit</b>.
+                Confirmer ? Le produit sera désactivé. Les cartes existantes continueront de fonctionner.
               </p>
-            </div>
-
-            {kits.length === 0 && (
-              <div className="card text-center py-10">
-                <ShoppingBasket size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">Aucun kit. Créez-en un ci-dessus.</p>
+              <div className="flex gap-2">
+                <Button variant="ghost" className="flex-1" onClick={() => setConfirmDelete(false)}>
+                  Annuler
+                </Button>
+                <Button
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                  onClick={handleDeactivate}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={16} /> Désactiver</>}
+                </Button>
               </div>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {kits.map(k => {
-                const itemCount = store.kitItems.filter(i => i.kit_ids?.includes(k.id)).length;
-                return (
-                  <div key={k.id} className={cx('card flex flex-col gap-3', !k.is_active && 'opacity-60')}>
-                    <div className="flex items-start justify-between gap-2">
-                      <Badge color="primary">Kit</Badge>
-                      {!k.is_active && <Badge color="danger">Désactivé</Badge>}
-                    </div>
-
-                    <ProductImage product={k} />
-
-                    <div>
-                      <h3 className="font-heading font-bold truncate">{k.name}</h3>
-                      <p className="text-xs text-muted line-clamp-2 mt-1">{k.description}</p>
-                    </div>
-
-                    <p className="text-xs text-muted">
-                      <Boxes size={12} className="inline mr-1" />
-                      {itemCount} item{itemCount > 1 ? 's' : ''}
-                    </p>
-
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        onClick={() => setKitModal({ open: true, kit: k })}
-                        className="btn-ghost flex-1 text-sm"
-                      >
-                        <Pencil size={14} /> Modifier
-                      </button>
-                      <button
-                        onClick={() => toggleProductActive(k.id)}
-                        className={cx(
-                          'p-3 rounded-xl border min-h-[48px] min-w-[48px] flex items-center justify-center transition',
-                          k.is_active
-                            ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
-                            : 'border-secondary-light/30 text-secondary-light hover:bg-secondary-light/10'
-                        )}
-                        title={k.is_active ? 'Désactiver' : 'Activer'}
-                      >
-                        <Power size={18} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
-          </>
-        )}
-
-        {/* ---------- ITEMS DE KIT ---------- */}
-        {tab === 'items' && (
-          <>
-            <button
-              onClick={() => setItemModal({ open: true, item: null })}
-              className="btn-primary w-full"
-              disabled={kits.length === 0}
-              title={kits.length === 0 ? "Créez d'abord un kit" : ''}
+          ) : (
+            <Button
+              variant="ghost"
+              className="w-full text-red-500"
+              onClick={() => setConfirmDelete(true)}
             >
-              <Plus size={18} /> Nouvel item de kit
-            </button>
-
-            {kits.length === 0 && (
-              <div className="card border-2 border-amber-500/30 bg-amber-500/5">
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  ⚠️ Vous devez d'abord créer au moins un <b>kit</b> dans l'onglet "Kits" avant de pouvoir ajouter des items.
-                </p>
-              </div>
-            )}
-
-            <div className="card">
-              <p className="text-xs text-muted">
-                Ces items composent les paniers dynamiques des clients. Un item peut appartenir à plusieurs kits.
-              </p>
-            </div>
-
-            {kitItems.length === 0 && kits.length > 0 && (
-              <div className="card text-center py-10">
-                <Boxes size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">Aucun item. Ajoutez-en un ci-dessus.</p>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {kitItems.map(item => {
-                const assignedKits = (item.kit_ids || [])
-                  .map(id => store.products.find(p => p.id === id))
-                  .filter(Boolean);
-                return (
-                  <div key={item.id} className={cx('card flex flex-col gap-3', !item.is_active && 'opacity-60')}>
-                    <div className="flex gap-3 items-start">
-                      {/* Thumb image */}
-                      <div className="w-16 h-16 rounded-xl bg-black/5 dark:bg-white/5 overflow-hidden shrink-0 flex items-center justify-center">
-                        {item.photo_url ? (
-                          <img src={item.photo_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Boxes size={22} className="text-muted" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold truncate">{item.name}</p>
-                        <p className="text-xs text-muted font-mono">{formatFCFA(item.price)}</p>
-                      </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          onClick={() => setItemModal({ open: true, item })}
-                          className="p-2 rounded-full text-primary-light dark:text-primary-dark hover:bg-primary-light/10"
-                          title="Modifier"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => toggleKitItemActive(item.id)}
-                          className={cx(
-                            'p-2 rounded-full',
-                            item.is_active ? 'text-red-500 hover:bg-red-500/10' : 'text-secondary-light hover:bg-secondary-light/10'
-                          )}
-                          title={item.is_active ? 'Désactiver' : 'Activer'}
-                        >
-                          <Power size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {assignedKits.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-2 border-t border-outline/30">
-                        {assignedKits.map(k => (
-                          <Badge key={k.id} color="neutral">{k.name}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+              <Power size={16} /> {product.is_active ? 'Désactiver' : 'Activer'}
+            </Button>
+          )}
+        </div>
       </div>
-
-      {/* Modals */}
-      <KitFormModal
-        open={kitModal.open}
-        kit={kitModal.kit}
-        onClose={() => setKitModal({ open: false, kit: null })}
-        onSave={handleSaveKit}
-      />
-
-      <KitItemFormModal
-        open={itemModal.open}
-        item={itemModal.item}
-        kits={kits}
-        onClose={() => setItemModal({ open: false, item: null })}
-        onSave={handleSaveItem}
-      />
     </>
   );
 }

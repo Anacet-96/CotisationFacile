@@ -1,44 +1,60 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Sparkles, Image as ImageIcon, X, Upload } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
+import { useMockStore } from '../../lib/mockStore';
+import { addNotification } from '../../lib/api';
 import Header from '../../components/layout/Header';
 import Button from '../../components/ui/Button';
-
-const MAX_PHOTOS = 5;
+import MultiImageUpload from '../../components/ui/MultiImageUpload';
 
 export default function CommandePersonnalisee() {
   const nav = useNavigate();
+  const { user } = useAuth();
+  const store = useMockStore();
+
   const [form, setForm] = useState({ description: '', price: '', message: '' });
-  const [photos, setPhotos] = useState([]); // [{ file, preview }]
+  const [photos, setPhotos] = useState([]);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  function addPhotos(e) {
-    const files = Array.from(e.target.files || []);
-    const remaining = MAX_PHOTOS - photos.length;
-    const newPhotos = files.slice(0, remaining).map(f => ({
-      file: f,
-      preview: URL.createObjectURL(f),
-    }));
-    setPhotos(p => [...p, ...newPhotos]);
-    e.target.value = ''; // reset input pour permettre de re-uploader
-  }
-
-  function removePhoto(idx) {
-    setPhotos(p => {
-      const target = p[idx];
-      if (target?.preview) URL.revokeObjectURL(target.preview);
-      return p.filter((_, i) => i !== idx);
-    });
-  }
-
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault();
     setErr('');
+
     if (!form.description.trim()) return setErr('Décrivez le produit souhaité.');
-    // TODO Supabase : upload des photos dans Storage + INSERT custom_orders
-    //   - bucket "custom-order-photos"
-    //   - photos: [{ url, path }]
+
+    setLoading(true);
+
+    const { error } = await supabase.from('custom_orders').insert({
+      client_id: user.id,
+      description: form.description.trim(),
+      estimated_price: parseInt(form.price, 10) || null,
+      message: form.message.trim() || null,
+      photos: photos,
+      status: 'en_attente',
+    });
+
+    if (error) {
+      setLoading(false);
+      console.error('Commande :', error);
+      return setErr(error.message);
+    }
+
+    // Notifier les admins
+    const admins = store.users.filter(u => u.role === 'admin');
+    for (const admin of admins) {
+      await addNotification({
+        userId: admin.id,
+        type: 'nouvelle_commande',
+        message: `${user.name} a envoyé une commande personnalisée : "${form.description.slice(0, 60)}${form.description.length > 60 ? '…' : ''}"`,
+        link: '/admin/commandes',
+      });
+    }
+
+    setLoading(false);
     setSent(true);
   }
 
@@ -81,7 +97,6 @@ export default function CommandePersonnalisee() {
         </div>
 
         <form onSubmit={submit} className="card space-y-4">
-          {/* Description */}
           <div>
             <label className="text-xs font-semibold text-muted">Description du produit *</label>
             <textarea
@@ -92,56 +107,20 @@ export default function CommandePersonnalisee() {
             />
           </div>
 
-          {/* Photos */}
-          <div>
-            <label className="text-xs font-semibold text-muted flex items-center gap-1.5">
-              <ImageIcon size={14} />
-              Photos (facultatif, {photos.length}/{MAX_PHOTOS})
-            </label>
+          <MultiImageUpload
+            values={photos}
+            onChange={setPhotos}
+            max={5}
+            label="Photos"
+            folder="orders"
+          />
 
-            <p className="text-[11px] text-muted mt-1 mb-2">
-              Ajoutez jusqu'à {MAX_PHOTOS} photos pour illustrer votre demande.
-            </p>
-
-            {/* Grille d'aperçus */}
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {photos.map((p, i) => (
-                <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-outline/40">
-                  <img src={p.preview} alt="" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-                    aria-label="Retirer"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-
-              {photos.length < MAX_PHOTOS && (
-                <label className="aspect-square rounded-xl border-2 border-dashed border-outline flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-primary-light dark:hover:border-primary-dark transition text-muted">
-                  <Upload size={20} />
-                  <span className="text-[10px] font-semibold">Ajouter</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={addPhotos}
-                  />
-                </label>
-              )}
-            </div>
-          </div>
-
-          {/* Prix estimé */}
           <div>
             <label className="text-xs font-semibold text-muted">Prix estimé (facultatif)</label>
             <div className="relative mt-1">
               <input
                 className="input pr-16"
-                type="text"
+                type="number"
                 value={form.price}
                 onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
                 placeholder="Ex : 180000"
@@ -152,7 +131,6 @@ export default function CommandePersonnalisee() {
             </div>
           </div>
 
-          {/* Message */}
           <div>
             <label className="text-xs font-semibold text-muted">Message (facultatif)</label>
             <textarea
@@ -165,7 +143,9 @@ export default function CommandePersonnalisee() {
 
           {err && <p className="text-sm text-red-500">{err}</p>}
 
-          <Button type="submit" className="w-full">Envoyer ma demande</Button>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Envoyer ma demande'}
+          </Button>
         </form>
       </div>
     </>

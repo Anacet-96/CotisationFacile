@@ -1,400 +1,222 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Plus, Package, ShoppingBasket, Pencil, Power, Search,
-  Boxes, AlertCircle,
-} from 'lucide-react';
-import {
-  useMockStore, toggleProductActive, toggleKitItemActive,
-  addProduct, updateProduct, addKitItem, updateKitItem,
-} from '../../lib/mockStore';
+import { useState, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Info, ShoppingCart, Sparkles, Search, CheckCircle2, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useMockStore, addCard, addNotification } from '../../lib/mockStore';
 import { formatFCFA, productTypeLabel, cx } from '../../lib/helpers';
 import Header from '../../components/layout/Header';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import ProductImage from '../../components/ui/ProductImage';
-import KitFormModal from '../../components/admin/KitFormModal';
-import KitItemFormModal from '../../components/admin/KitItemFormModal';
 
-const TABS = [
-  { key: 'produits', label: 'Produits', icon: Package },
-  { key: 'kits', label: 'Kits', icon: ShoppingBasket },
-  { key: 'items', label: 'Items de kit', icon: Boxes },
+const FILTRES = [
+  { key: 'tous', label: 'Tous' },
+  { key: '1_mois', label: '1 mois' },
+  { key: '1_an', label: '1 an' },
+  { key: 'kit', label: 'Kit ravitaillement' },
 ];
 
 export default function Produits() {
+  const { user } = useAuth();
+  const nav = useNavigate();
   const store = useMockStore();
-  const [tab, setTab] = useState('produits');
+  const [filtre, setFiltre] = useState('tous');
   const [query, setQuery] = useState('');
-  const [kitModal, setKitModal] = useState({ open: false, kit: null });
-  const [itemModal, setItemModal] = useState({ open: false, item: null });
+  const [success, setSuccess] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // ⚠️ LISTE COMPLÈTE de tous les kits (jamais filtrée) — utilisée pour le modal item
-  const allKits = store.products.filter(p => p.product_type === 'kit');
+  const produits = useMemo(() => {
+    return store.products.filter(p => {
+      if (!p.is_active) return false;
+      if (filtre !== 'tous' && p.product_type !== filtre) return false;
+      if (query.trim()) {
+        const q = query.toLowerCase();
+        return p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [store.products, filtre, query]);
 
-  // Listes filtrées pour l'affichage
-  const produits = store.products.filter(p => {
-    if (p.product_type === 'kit') return false;
-    if (!query.trim()) return true;
-    return p.name.toLowerCase().includes(query.toLowerCase());
-  });
+  async function demanderProduit(product) {
+    if (loading) return;
 
-  const kits = allKits.filter(k => {
-    if (!query.trim()) return true;
-    return k.name.toLowerCase().includes(query.toLowerCase());
-  });
-
-  const kitItems = store.kitItems.filter(i => {
-    if (!query.trim()) return true;
-    return i.name.toLowerCase().includes(query.toLowerCase());
-  });
-
-  function handleSaveKit(data) {
-    if (kitModal.kit) {
-      updateProduct(kitModal.kit.id, {
-        name: data.name,
-        description: data.description,
-        photo_url: data.photo_url,
-      });
-    } else {
-      addProduct({
-        name: data.name,
-        description: data.description,
-        photo_url: data.photo_url,
-        price_per_day: 0,
-        duration_days: 31,
-        product_type: 'kit',
-        is_active: true,
-      });
+    const collectorId = user?.collector_id;
+    if (!collectorId) {
+      alert("Aucun collecteur ne vous est encore assigné. Patientez, la secrétaire va vous en attribuer un.");
+      return;
     }
-    setKitModal({ open: false, kit: null });
+
+    setLoading(true);
+
+    const newCard = await addCard({
+      clientId: user.id,
+      product,
+      collectorId,
+      lockedPricePerDay: product.price_per_day,
+    });
+
+    if (!newCard) {
+      setLoading(false);
+      alert("Erreur lors de la création. Regarde la console.");
+      return;
+    }
+
+    const collector = store.users.find(u => u.id === collectorId);
+
+    await addNotification({
+      userId: user.id,
+      type: 'carte_creee',
+      message: `Vous avez demandé ${product.name}. Votre collecteur ${collector?.name || ''} va vous contacter.`,
+      link: `/client/carte/${newCard.id}`,
+    });
+
+    await addNotification({
+      userId: collectorId,
+      type: 'nouvelle_demande_client',
+      message: `${user.name} a demandé le produit ${product.name}. À valider.`,
+      link: `/collecteur/client/${user.id}`,
+    });
+
+    setLoading(false);
+    setSuccess({ productName: product.name });
   }
 
-  function handleSaveItem(data) {
-    if (itemModal.item) {
-      updateKitItem(itemModal.item.id, data);
-    } else {
-      addKitItem({ ...data, is_active: true });
-    }
-    setItemModal({ open: false, item: null });
+  if (success) {
+    return (
+      <>
+        <Header title="Demande envoyée" />
+        <div className="p-6 max-w-lg mx-auto text-center">
+          <div className="w-20 h-20 rounded-full bg-secondary-light/15 dark:bg-secondary-dark/20 flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 size={44} className="text-secondary-light dark:text-secondary-dark" />
+          </div>
+          <h1 className="text-2xl font-heading font-extrabold mb-3">Demande envoyée !</h1>
+          <p className="text-muted mb-2">
+            Produit : <b className="text-content-light dark:text-content-dark">{success.productName}</b>
+          </p>
+          <p className="text-muted text-sm mb-8">
+            Votre collecteur va vous contacter pour activer la carte (frais de carte 200 FCFA).
+          </p>
+          <div className="space-y-2">
+            <Button className="w-full" onClick={() => nav('/client')}>
+              Voir mes cartes
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={() => setSuccess(null)}>
+              Continuer à explorer
+            </Button>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
     <>
-      <Header title="Produits & Kits" />
+      <Header title="Catalogue" />
       <div className="p-4 max-w-lg mx-auto lg:max-w-6xl space-y-4">
 
-        {/* Tabs */}
-        <div className="flex gap-2">
-          {TABS.map(t => {
-            const Icon = t.icon;
-            const count =
-              t.key === 'produits' ? store.products.filter(p => p.product_type !== 'kit').length
-              : t.key === 'kits' ? allKits.length
-              : store.kitItems.length;
-            return (
-              <button
-                key={t.key}
-                onClick={() => { setTab(t.key); setQuery(''); }}
-                className={cx(
-                  'flex-1 px-2 py-3 rounded-xl text-xs sm:text-sm font-semibold transition min-h-[48px] flex items-center justify-center gap-1.5',
-                  tab === t.key
-                    ? 'bg-primary-light dark:bg-primary-dark text-white'
-                    : 'bg-black/5 dark:bg-white/10 text-muted'
-                )}
-              >
-                <Icon size={14} />
-                <span className="hidden sm:inline">{t.label}</span>
-                <span className="sm:hidden">{t.label.split(' ')[0]}</span>
-                <span className={cx(
-                  'text-[10px] font-bold rounded-full px-1.5 py-0.5',
-                  tab === t.key ? 'bg-white/20' : 'bg-black/10 dark:bg-white/10'
-                )}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            to="/comment-ca-marche"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold hover:bg-black/10 dark:hover:bg-white/10 transition min-h-[48px]"
+          >
+            <Info size={16} className="text-primary-light dark:text-primary-dark" />
+            Comment ça marche
+          </Link>
+          <Link
+            to="/client/commande-personnalisee"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary-light/10 dark:bg-primary-dark/20 text-primary-light dark:text-primary-dark text-sm font-semibold hover:bg-primary-light/20 dark:hover:bg-primary-dark/30 transition min-h-[48px]"
+          >
+            <Sparkles size={16} />
+            Commander sur-mesure
+          </Link>
         </div>
 
-        {/* Recherche */}
         <div className="relative">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           <input
             className="input pl-11"
-            placeholder="Rechercher…"
+            placeholder="Rechercher un produit…"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
         </div>
 
-        {/* ---------- PRODUITS ---------- */}
-        {tab === 'produits' && (
-          <>
-            <Link to="/admin/nouveau-produit" className="btn-primary w-full">
-              <Plus size={18} /> Nouveau produit
-            </Link>
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
+          {FILTRES.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFiltre(f.key)}
+              className={cx(
+                'shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition min-h-[40px]',
+                filtre === f.key
+                  ? 'bg-primary-light dark:bg-primary-dark text-white'
+                  : 'bg-black/5 dark:bg-white/10 text-muted'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
-            {produits.length === 0 && (
-              <div className="card text-center py-10">
-                <Package size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">Aucun produit.</p>
-              </div>
-            )}
+        {produits.length === 0 && (
+          <p className="text-center text-muted text-sm py-8">Aucun produit trouvé.</p>
+        )}
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {produits.map(p => (
-                <div key={p.id} className={cx('card flex flex-col gap-3', !p.is_active && 'opacity-60')}>
-                  <div className="flex items-start justify-between gap-2">
-                    <Badge color="primary">{productTypeLabel(p.product_type)}</Badge>
-                    {!p.is_active && <Badge color="danger">Désactivé</Badge>}
-                  </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {produits.map(p => {
+            const isKit = p.product_type === 'kit';
+            const needsDelivery = p.product_type === '1_mois' || p.product_type === 'kit';
+            return (
+              <div key={p.id} className="card flex flex-col">
+                <ProductImage product={p} className="mb-3" />
 
-                  <ProductImage product={p} />
+                <div className="flex items-start justify-between mb-2 gap-2">
+                  <h3 className="font-heading font-bold truncate">{p.name}</h3>
+                  <Badge color="primary">{productTypeLabel(p.product_type)}</Badge>
+                </div>
 
-                  <div>
-                    <h3 className="font-heading font-bold truncate">{p.name}</h3>
-                    <p className="text-xs text-muted line-clamp-2 mt-1">{p.description}</p>
-                  </div>
+                <p className="text-xs text-muted mb-3 line-clamp-2 flex-1">{p.description}</p>
 
-                  <p className="font-mono font-bold text-lg">
+                {!isKit && (
+                  <p className="text-lg font-mono font-bold mb-3">
                     {formatFCFA(p.price_per_day)}
                     <span className="text-xs text-muted font-body"> / jour</span>
                   </p>
+                )}
 
-                  <div className="flex gap-2 mt-auto">
-                    <Link to={`/admin/produit/${p.id}`} className="btn-ghost flex-1 text-sm">
-                      <Pencil size={14} /> Modifier
-                    </Link>
-                    <button
-                      onClick={() => toggleProductActive(p.id)}
-                      className={cx(
-                        'p-3 rounded-xl border min-h-[48px] min-w-[48px] flex items-center justify-center transition',
-                        p.is_active
-                          ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
-                          : 'border-secondary-light/30 text-secondary-light hover:bg-secondary-light/10'
-                      )}
-                      title={p.is_active ? 'Désactiver' : 'Activer'}
-                    >
-                      <Power size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* ---------- KITS ---------- */}
-        {tab === 'kits' && (
-          <>
-            <button
-              onClick={() => setKitModal({ open: true, kit: null })}
-              className="btn-primary w-full"
-            >
-              <Plus size={18} /> Ajouter un kit
-            </button>
-
-            <div className="card">
-              <p className="text-xs text-muted">
-                Les kits apparaissent côté client avec la mention <b>Kit ravitaillement</b>.
-                Le client compose ensuite son panier avec les <b>items de kit</b>.
-              </p>
-            </div>
-
-            {kits.length === 0 && (
-              <div className="card text-center py-10">
-                <ShoppingBasket size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">
-                  {allKits.length === 0 ? 'Aucun kit. Créez-en un ci-dessus.' : 'Aucun kit ne correspond à la recherche.'}
+                <p className="text-xs text-muted mb-3">
+                  {p.product_type === '1_mois' && 'Recevez le produit immédiatement, payez sur 31 jours.'}
+                  {p.product_type === '1_an' && 'Payez sur 12 mois avant de recevoir votre produit.'}
+                  {p.product_type === 'kit' && 'Composez votre kit, payez avant réception.'}
                 </p>
-              </div>
-            )}
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {kits.map(k => {
-                const itemCount = store.kitItems.filter(i => (i.kit_ids || []).includes(k.id)).length;
-                return (
-                  <div key={k.id} className={cx('card flex flex-col gap-3', !k.is_active && 'opacity-60')}>
-                    <div className="flex items-start justify-between gap-2">
-                      <Badge color="primary">Kit</Badge>
-                      {!k.is_active && <Badge color="danger">Désactivé</Badge>}
-                    </div>
-
-                    <ProductImage product={k} />
-
-                    <div>
-                      <h3 className="font-heading font-bold truncate">{k.name}</h3>
-                      <p className="text-xs text-muted line-clamp-2 mt-1">{k.description}</p>
-                    </div>
-
-                    <p className="text-xs text-muted">
-                      <Boxes size={12} className="inline mr-1" />
-                      {itemCount} item{itemCount > 1 ? 's' : ''}
-                    </p>
-
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        onClick={() => setKitModal({ open: true, kit: k })}
-                        className="btn-ghost flex-1 text-sm"
-                      >
-                        <Pencil size={14} /> Modifier
-                      </button>
-                      <button
-                        onClick={() => toggleProductActive(k.id)}
-                        className={cx(
-                          'p-3 rounded-xl border min-h-[48px] min-w-[48px] flex items-center justify-center transition',
-                          k.is_active
-                            ? 'border-red-500/30 text-red-500 hover:bg-red-500/10'
-                            : 'border-secondary-light/30 text-secondary-light hover:bg-secondary-light/10'
-                        )}
-                        title={k.is_active ? 'Désactiver' : 'Activer'}
-                      >
-                        <Power size={18} />
-                      </button>
-                    </div>
+                <div className="text-xs space-y-1 mb-3 border-t border-outline/30 pt-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted">Frais de carte</span>
+                    <span className="font-mono font-semibold">200 FCFA</span>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {/* ---------- ITEMS DE KIT ---------- */}
-        {tab === 'items' && (
-          <>
-            {/* Compteur visuel de kits disponibles */}
-            {allKits.length > 0 ? (
-              <div className="card border-2 border-secondary-light/30 dark:border-secondary-dark/30 bg-secondary-light/5 dark:bg-secondary-dark/10 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-secondary-light/15 dark:bg-secondary-dark/20 flex items-center justify-center shrink-0">
-                  <ShoppingBasket size={18} className="text-secondary-light dark:text-secondary-dark" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm">
-                    {allKits.length} kit{allKits.length > 1 ? 's' : ''} disponible{allKits.length > 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs text-muted">
-                    Vous pourrez assigner le nouvel item à un ou plusieurs kits.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="card border-2 border-amber-500/40 bg-amber-500/5 flex items-start gap-3">
-                <AlertCircle size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm text-amber-700 dark:text-amber-400">
-                    Aucun kit existant
-                  </p>
-                  <p className="text-xs text-muted mt-0.5 mb-3">
-                    Créez d'abord un kit dans l'onglet "Kits" avant d'ajouter des items.
-                  </p>
-                  <button
-                    onClick={() => setTab('kits')}
-                    className="btn-secondary text-sm"
-                  >
-                    <Plus size={14} /> Créer un kit
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <Button
-              className="w-full"
-              disabled={allKits.length === 0}
-              onClick={() => setItemModal({ open: true, item: null })}
-            >
-              <Plus size={18} /> Nouvel item de kit
-            </Button>
-
-            <div className="card">
-              <p className="text-xs text-muted">
-                Ces items composent les paniers dynamiques des clients. Un item peut appartenir à plusieurs kits.
-              </p>
-            </div>
-
-            {kitItems.length === 0 && allKits.length > 0 && (
-              <div className="card text-center py-10">
-                <Boxes size={32} className="mx-auto mb-3 text-muted" />
-                <p className="text-muted text-sm">Aucun item. Ajoutez-en un ci-dessus.</p>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {kitItems.map(item => {
-                const assignedKits = (item.kit_ids || [])
-                  .map(id => allKits.find(k => k.id === id))
-                  .filter(Boolean);
-                return (
-                  <div key={item.id} className={cx('card flex flex-col gap-3', !item.is_active && 'opacity-60')}>
-                    <div className="flex gap-3 items-start">
-                      <div className="w-16 h-16 rounded-xl bg-black/5 dark:bg-white/5 overflow-hidden shrink-0 flex items-center justify-center">
-                        {item.photo_url ? (
-                          <img src={item.photo_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <Boxes size={22} className="text-muted" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold truncate">{item.name}</p>
-                        <p className="text-xs text-muted font-mono">{formatFCFA(item.price)}</p>
-                      </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <button
-                          onClick={() => setItemModal({ open: true, item })}
-                          className="p-2 rounded-full text-primary-light dark:text-primary-dark hover:bg-primary-light/10"
-                          title="Modifier"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => toggleKitItemActive(item.id)}
-                          className={cx(
-                            'p-2 rounded-full',
-                            item.is_active ? 'text-red-500 hover:bg-red-500/10' : 'text-secondary-light hover:bg-secondary-light/10'
-                          )}
-                          title={item.is_active ? 'Désactiver' : 'Activer'}
-                        >
-                          <Power size={16} />
-                        </button>
-                      </div>
+                  {needsDelivery && (
+                    <div className="flex justify-between">
+                      <span className="text-muted">Frais de livraison</span>
+                      <span className="font-mono font-semibold">1 000 FCFA</span>
                     </div>
+                  )}
+                </div>
 
-                    {assignedKits.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 pt-2 border-t border-outline/30">
-                        {assignedKits.map(k => (
-                          <Badge key={k.id} color="neutral">{k.name}</Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-amber-600 dark:text-amber-400 italic pt-2 border-t border-outline/30">
-                        ⚠️ Aucun kit assigné
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+                {isKit ? (
+                  <Link to={`/client/produits/kit/${p.id}`} className="btn-primary w-full mt-auto">
+                    <ShoppingCart size={18} /> Composer mon kit
+                  </Link>
+                ) : (
+                  <Button className="w-full mt-auto" onClick={() => demanderProduit(p)} disabled={loading}>
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : 'Demander ce produit'}
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-
-      {/* Modals */}
-      <KitFormModal
-        open={kitModal.open}
-        kit={kitModal.kit}
-        onClose={() => setKitModal({ open: false, kit: null })}
-        onSave={handleSaveKit}
-      />
-
-      <KitItemFormModal
-        open={itemModal.open}
-        item={itemModal.item}
-        kits={allKits}
-        onClose={() => setItemModal({ open: false, item: null })}
-        onSave={handleSaveItem}
-      />
     </>
   );
 }

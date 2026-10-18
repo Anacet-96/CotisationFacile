@@ -56,6 +56,7 @@ export default function KitFormModal({ open, onClose, onSave, kit = null }) {
           label="Image du kit"
           value={form.photo_url}
           onChange={url => set('photo_url', url)}
+          folder="kits"
         />
 
         <div>
