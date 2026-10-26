@@ -7,6 +7,7 @@ import AppLayout from './components/layout/AppLayout';
 import PublicLayout from './components/layout/PublicLayout';
 import Button from './components/ui/Button';
 import OfflineDetector from './components/OfflineDetector';
+import { Eye, EyeOff } from 'lucide-react';
 
 // Public
 import Onboarding from './pages/public/Onboarding';
@@ -67,6 +68,7 @@ function LoginPage() {
   const { signIn, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // Nouvel état
   const [err, setErr] = useState('');
 
   async function handleSubmit(e) {
@@ -101,13 +103,24 @@ function LoginPage() {
 
           <div>
             <label className="text-xs font-semibold text-muted mb-1 block">Mot de passe</label>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Mot de passe"
-            />
+            {/* NOUVEAU : Conteneur relatif pour placer l'œil à l'intérieur */}
+            <div className="relative">
+              <input
+                className="input pr-12" // pr-12 pour ne pas écrire sous l'icône
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Mot de passe"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-content-light dark:hover:text-content-dark"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
           </div>
 
           <div className="flex justify-end">
@@ -117,16 +130,8 @@ function LoginPage() {
           </div>
 
           {err && <p className="text-sm text-red-500">{err}</p>}
-
           <Button type="submit" className="w-full">Se connecter</Button>
         </form>
-
-        <p className="text-center text-sm text-muted mt-8">
-          Pas de compte ?{' '}
-          <Link to="/inscription" className="text-primary-light dark:text-primary-dark font-semibold">
-            S'inscrire
-          </Link>
-        </p>
       </div>
     </div>
   );

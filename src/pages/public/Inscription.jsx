@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
-import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, Eye, EyeOff } from 'lucide-react';
 import { cx } from '../../lib/helpers';
 
 const VILLES = ['Cotonou', 'Porto-Novo', 'Parakou', 'Abomey-Calavi', 'Bohicon'];
@@ -11,6 +11,7 @@ export default function Inscription() {
   const nav = useNavigate();
   const { signUp } = useAuth();
   const [step, setStep] = useState(1);
+  const [showPassword, setShowPassword] = useState(false); // <-- Bien placé à l'intérieur
   const [form, setForm] = useState({
     firstname: '', lastname: '', phone: '', email: '', password: '',
     city: '', district: '', profession: '',
@@ -20,7 +21,7 @@ export default function Inscription() {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
-  // Validation de l'étape en cours avant de passer à la suivante
+  // Validation de l'étape en cours
   function next() {
     setErr('');
     if (step === 1) {
@@ -123,7 +124,27 @@ export default function Inscription() {
           {step === 2 && (
             <div className="space-y-4">
               <Field label="Adresse email *" type="email" placeholder="vous@exemple.com" value={form.email} onChange={v => set('email', v)} />
-              <Field label="Mot de passe *" type="password" placeholder="Au moins 6 caractères" value={form.password} onChange={v => set('password', v)} />
+              
+              <div>
+                <label className="text-xs font-semibold text-muted">Mot de passe *</label>
+                <div className="relative mt-1">
+                  <input
+                    className="input pr-12"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Au moins 6 caractères"
+                    value={form.password}
+                    onChange={e => set('password', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-content-light dark:hover:text-content-dark transition"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -160,7 +181,7 @@ export default function Inscription() {
                 <ArrowLeft size={18} className="mr-2" /> Retour
               </Button>
             ) : (
-              <div className="w-10"></div> // Espaceur invisible
+              <div className="w-10"></div>
             )}
 
             {step < 3 ? (
