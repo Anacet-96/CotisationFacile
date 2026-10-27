@@ -1,13 +1,24 @@
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
-import { defineConfig } from 'vite'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    babel({ presets: [reactCompilerPreset()] }) ,
     tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      manifest: false, // on garde notre manifest.json dans public/
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        navigateFallbackDenylist: [/^\/api/],
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
+    }),
   ],
-})
+});

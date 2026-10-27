@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PiggyBank, UserCheck, LineChart, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  PiggyBank, UserCheck, LineChart, ChevronLeft, ChevronRight,
+  Download, CheckCircle2, Smartphone, Share, Plus,
+} from 'lucide-react';
 import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import { cx } from '../../lib/helpers';
-
-
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 const SLIDES = [
   {
@@ -26,11 +29,26 @@ const SLIDES = [
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
+  const [iosModalOpen, setIosModalOpen] = useState(false);
   const nav = useNavigate();
+  const { canInstall, isInstalled, isIOS, promptInstall } = usePWAInstall();
+
   const slide = SLIDES[step];
   const Icon = slide.icon;
   const isFirst = step === 0;
   const isLast = step === SLIDES.length - 1;
+
+  async function handleInstall() {
+    if (isIOS) {
+      setIosModalOpen(true);
+      return;
+    }
+    const res = await promptInstall();
+    if (res.outcome === 'unavailable' && !isInstalled) {
+      // Prompt pas encore prêt (ex: déjà installée, ou browser non compatible)
+      alert("L'installation n'est pas disponible sur ce navigateur. Essayez Chrome, Edge ou Safari (iOS).");
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-surface-light dark:bg-surface-dark">
@@ -65,7 +83,26 @@ export default function Onboarding() {
             <Button className="w-full" onClick={() => nav('/inscription')}>
               Créer mon compte
             </Button>
-            <Link to="/connexion" className="block text-center text-sm text-muted py-2">
+
+            {/* Bouton Installer l'app */}
+            {isInstalled ? (
+              <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-secondary-light/10 dark:bg-secondary-dark/15 text-secondary-light dark:text-secondary-dark text-sm font-semibold min-h-[48px]">
+                <CheckCircle2 size={18} /> Application installée
+              </div>
+            ) : (canInstall || isIOS) ? (
+              <Button variant="ghost" className="w-full" onClick={handleInstall}>
+                <Download size={18} /> Installer l'app
+              </Button>
+            ) : (
+              <div className="w-full text-center text-xs text-muted py-2 px-4 rounded-xl bg-black/5 dark:bg-white/5">
+                Pour installer l'app, ouvrez ce site dans Chrome, Edge ou Safari (iOS).
+              </div>
+            )}
+
+            <Link
+              to="/connexion"
+              className="block text-center text-sm text-muted py-2"
+            >
               J'ai déjà un compte
             </Link>
           </>
@@ -85,6 +122,7 @@ export default function Onboarding() {
             </Button>
           </div>
         )}
+
         {!isLast && (
           <button
             onClick={() => nav('/connexion')}
@@ -94,6 +132,40 @@ export default function Onboarding() {
           </button>
         )}
       </div>
+
+      {/* Modal instructions iOS */}
+      <Modal
+        open={iosModalOpen}
+        onClose={() => setIosModalOpen(false)}
+        title="Installer sur iPhone / iPad"
+        footer={<Button className="w-full" onClick={() => setIosModalOpen(false)}>Compris</Button>}
+      >
+        <p className="text-sm text-muted mb-4">
+          Sur iOS, l'installation se fait manuellement depuis Safari :
+        </p>
+        <ol className="space-y-3 text-sm">
+          <li className="flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-primary-light/10 dark:bg-primary-dark/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary-light dark:text-primary-dark">1</span>
+            <span className="flex items-center gap-1.5 flex-wrap">
+              Appuyez sur le bouton <Share size={14} className="inline" /> <b>Partager</b> (carré avec flèche en bas de l'écran).
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-primary-light/10 dark:bg-primary-dark/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary-light dark:text-primary-dark">2</span>
+            <span className="flex items-center gap-1.5 flex-wrap">
+              Faites défiler et appuyez sur <Plus size={14} className="inline" /> <b>Sur l'écran d'accueil</b>.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-primary-light/10 dark:bg-primary-dark/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary-light dark:text-primary-dark">3</span>
+            <span>Appuyez sur <b>Ajouter</b> en haut à droite.</span>
+          </li>
+        </ol>
+        <div className="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
+          <Smartphone size={14} className="shrink-0 mt-0.5" />
+          L'icône Emilio apparaîtra sur votre écran d'accueil comme une vraie application.
+        </div>
+      </Modal>
     </div>
   );
 }
