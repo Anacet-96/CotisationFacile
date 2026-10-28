@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import {
   PiggyBank, UserCheck, LineChart, ChevronLeft, ChevronRight,
-  Download, CheckCircle2, Smartphone, Share, Plus,
+  Download, CheckCircle2, Smartphone, Share, Plus, Loader2,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { cx } from '../../lib/helpers';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
+import { useAuth } from '../../context/AuthContext';
 
 const SLIDES = [
   {
@@ -23,16 +24,43 @@ const SLIDES = [
   {
     icon: LineChart,
     title: 'Suivez votre progression',
-    text: 'Consultez à tout moment votre carte, le nombre de jours payés et ce qu\'il vous reste.',
+    text: "Consultez à tout moment votre carte, le nombre de jours payés et ce qu'il vous reste.",
   },
 ];
+
+const HOME_BY_ROLE = {
+  client: '/client',
+  collecteur: '/collecteur',
+  secretaire: '/secretaire',
+  admin: '/admin',
+};
 
 export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [iosModalOpen, setIosModalOpen] = useState(false);
   const nav = useNavigate();
   const { canInstall, isInstalled, isIOS, promptInstall } = usePWAInstall();
+  const { user, loading } = useAuth();
 
+  // 1. Pendant le chargement de la session Supabase → écran neutre
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-light dark:bg-surface-dark">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={36} className="animate-spin text-primary-light dark:text-primary-dark" />
+          <p className="text-xs text-muted">Chargement…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Utilisateur connecté et actif → redirection auto vers son dashboard
+  if (user && user.status === 'actif') {
+    const target = HOME_BY_ROLE[user.role] || '/';
+    return <Navigate to={target} replace />;
+  }
+
+  // 3. Sinon → onboarding normal (pas connecté, ou en attente/rejeté)
   const slide = SLIDES[step];
   const Icon = slide.icon;
   const isFirst = step === 0;
@@ -45,7 +73,6 @@ export default function Onboarding() {
     }
     const res = await promptInstall();
     if (res.outcome === 'unavailable' && !isInstalled) {
-      // Prompt pas encore prêt (ex: déjà installée, ou browser non compatible)
       alert("L'installation n'est pas disponible sur ce navigateur. Essayez Chrome, Edge ou Safari (iOS).");
     }
   }
@@ -80,7 +107,6 @@ export default function Onboarding() {
       <div className="p-6 max-w-lg mx-auto w-full space-y-3">
         {isLast ? (
           <>
-            {/* Bouton Installer l'app */}
             {isInstalled ? (
               <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-secondary-light/10 dark:bg-secondary-dark/15 text-secondary-light dark:text-secondary-dark text-sm font-semibold min-h-[48px]">
                 <CheckCircle2 size={18} /> Application installée
@@ -95,26 +121,25 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Bouton Connexion */}
             <Button className="w-full" onClick={() => nav('/connexion')}>
               Accéder à mon compte <ChevronRight size={18} />
             </Button>
           </>
-        ) :  (
-        <div className="flex gap-3">
-          {!isFirst && (
-            <button
-              onClick={() => setStep(s => s - 1)}
-              className="btn-ghost px-4 shrink-0"
-              aria-label="Précédent"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
-          <Button className="flex-1" onClick={() => setStep(s => s + 1)}>
-            Suivant <ChevronRight size={18} />
-          </Button>
-        </div>
+        ) : (
+          <div className="flex gap-3">
+            {!isFirst && (
+              <button
+                onClick={() => setStep(s => s - 1)}
+                className="btn-ghost px-4 shrink-0"
+                aria-label="Précédent"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            )}
+            <Button className="flex-1" onClick={() => setStep(s => s + 1)}>
+              Suivant <ChevronRight size={18} />
+            </Button>
+          </div>
         )}
 
         {!isLast && (
@@ -141,7 +166,7 @@ export default function Onboarding() {
           <li className="flex items-start gap-3">
             <span className="w-6 h-6 rounded-full bg-primary-light/10 dark:bg-primary-dark/20 flex items-center justify-center shrink-0 text-xs font-bold text-primary-light dark:text-primary-dark">1</span>
             <span className="flex items-center gap-1.5 flex-wrap">
-              Appuyez sur le bouton <Share size={14} className="inline" /> <b>Partager</b> (carré avec flèche en bas de l'écran).
+              Appuyez sur <Share size={14} className="inline" /> <b>Partager</b> (carré avec flèche en bas).
             </span>
           </li>
           <li className="flex items-start gap-3">
