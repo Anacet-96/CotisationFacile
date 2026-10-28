@@ -24,8 +24,8 @@ export default function ClientDetail() {
   const store = useMockStore();
 
   const blockInfo = user
-  ? isCollectorBlocked(user.id, store.cards, store.dailyValidations, store.cardDays)
-  : { blocked: false };
+    ? isCollectorBlocked(user.id, store.cards, store.dailyValidations, store.cardDays)
+    : { blocked: false };
   const blocked = blockInfo.blocked;
 
   const client = user
@@ -47,8 +47,8 @@ export default function ClientDetail() {
   const pendingRequests = useMemo(
     () => (client
       ? store.profileChangeRequests.filter(
-          r => r.client_id === client.id && r.status === 'en_attente'
-        )
+        r => r.client_id === client.id && r.status === 'en_attente'
+      )
       : []),
     [client, store.profileChangeRequests]
   );
@@ -324,7 +324,9 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
           <Badge color="warning">En attente d'activation</Badge>
         </div>
         <div>
-          <h4 className="font-heading font-bold truncate">{prod?.name}</h4>
+          <h4 className="font-heading font-bold truncate">
+            {card.quantity > 1 ? `${card.quantity}x ` : ''}{prod?.name}
+          </h4>
           <p className="text-xs text-muted mt-0.5">
             Mise : <span className="font-mono">{formatFCFA(card.locked_price_per_day)}</span> / jour
           </p>

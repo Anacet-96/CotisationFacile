@@ -6,11 +6,16 @@
 export { useData as useMockStore } from '../context/DataContext';
 
 export {
-  addCard, activateCard, fillCardDays,
+  // Cartes
+  addCard, activateCard, fillCardDays, deleteCard, // <--- Ajouté ici
+  // Notifications
   addNotification, markNotificationRead, markAllRead,
+  // Secrétaire
   validateDay, approveClientRegistration, rejectClientRegistration,
   assignCollectorToClient, changeUserRole,
+  // Admin - Produits & Kits
   addProduct, updateProduct, toggleProductActive,
   addKitItem, updateKitItem, toggleKitItemActive,
+  // Admin - Commandes & Modifs
   updateCustomOrder, addProfileChangeRequest, reviewProfileChangeRequest,
 } from './api';

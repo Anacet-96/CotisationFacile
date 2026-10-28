@@ -8,6 +8,9 @@ import Header from '../../components/layout/Header';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import ProductImage from '../../components/ui/ProductImage';
+import { Minus, Plus } from 'lucide-react';
+import { Search } from 'lucide-react'; // Ajoute Search aux imports lucide-react existants
+import { cx } from '../../lib/helpers'; // Ajoute cx s'il n'y est pas
 
 export default function NouvelleCarte() {
   const { clientId } = useParams();
@@ -16,17 +19,32 @@ export default function NouvelleCarte() {
   const store = useMockStore();
 
   const [picked, setPicked] = useState(null);
+  const [quantity, setQuantity] = useState(1);
   const [success, setSuccess] = useState(null);
+
+  const [loading, setLoading] = useState(false);
+
+  const [query, setQuery] = useState('');
+  const [filtre, setFiltre] = useState('tous');
+
+
 
   const client = useMemo(() => {
     if (!user || !clientId) return null;
     return store.users.find(u => u.id === clientId && u.collector_id === user.id) || null;
   }, [user, clientId, store.users]);
 
-  const produits = useMemo(
-    () => store.products.filter(p => p.is_active),
-    [store.products]
-  );
+  const produits = useMemo(() => {
+    return store.products.filter(p => {
+      if (!p.is_active) return false;
+      if (filtre !== 'tous' && p.product_type !== filtre) return false;
+      if (query.trim()) {
+        const q = query.toLowerCase();
+        return p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [store.products, filtre, query]);
 
   // ---- Session expirée ----
   if (!user) {
@@ -96,6 +114,21 @@ export default function NouvelleCarte() {
   function handlePick(produit) {
     if (!produit) return;
     setPicked(produit);
+    setQuantity(1);
+  }
+
+  async function confirm() {
+    if (!picked || loading) return;
+    setLoading(true);
+
+    const newCard = await addCard({
+      clientId: client.id,
+      product: picked,
+      collectorId: user.id,
+      quantity: quantity,
+      lockedPricePerDay: picked.price_per_day,
+    });
+
   }
 
   function confirm() {
@@ -121,6 +154,8 @@ export default function NouvelleCarte() {
     setSuccess({ productName: picked.name, cardId: newCard.id });
   }
 
+
+
   // ---- Rendu principal ----
   return (
     <>
@@ -140,6 +175,40 @@ export default function NouvelleCarte() {
           </p>
           <p className="font-heading font-bold text-lg">{client.name}</p>
           <p className="text-xs text-muted font-mono">{client.client_number}</p>
+        </div>
+
+                {/* Recherche */}
+        <div className="relative mt-4">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            className="input pl-11"
+            placeholder="Rechercher un produit…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+        </div>
+
+        {/* Filtres */}
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1">
+          {[
+            { key: 'tous', label: 'Tous' },
+            { key: '1_mois', label: '1 mois' },
+            { key: '1_an', label: '1 an' },
+            { key: 'kit', label: 'Kit' },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFiltre(f.key)}
+              className={cx(
+                'shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition min-h-[40px]',
+                filtre === f.key
+                  ? 'bg-primary-light dark:bg-primary-dark text-white'
+                  : 'bg-black/5 dark:bg-white/10 text-muted'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
         {produits.length === 0 && (
@@ -212,13 +281,17 @@ export default function NouvelleCarte() {
             </div>
 
             <div className="rounded-xl bg-primary-light/10 dark:bg-primary-dark/15 p-3 space-y-1.5 text-sm mb-4">
-              <div className="flex justify-between">
-                <span className="text-muted">Prix/jour (verrouillé)</span>
-                <span className="font-mono font-semibold">{formatFCFA(picked.price_per_day)}</span>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-muted">Quantité</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setQuantity(q => Math.max(1, q - 1))} className="p-1 rounded bg-white/50 dark:bg-black/20"><Minus size={14} /></button>
+                  <span className="font-mono font-bold">{quantity}</span>
+                  <button type="button" onClick={() => setQuantity(q => q + 1)} className="p-1 rounded bg-white/50 dark:bg-black/20"><Plus size={14} /></button>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Durée</span>
-                <span className="font-semibold">{productTypeLabel(picked.product_type)}</span>
+              <div className="flex justify-between pt-2 border-t border-primary-light/20 dark:border-primary-dark/20">
+                <span className="font-semibold">Nouveau prix/jour</span>
+                <span className="font-mono font-bold">{formatFCFA(picked.price_per_day * quantity)}</span>
               </div>
             </div>
 

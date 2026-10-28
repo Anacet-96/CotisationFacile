@@ -50,9 +50,12 @@ export async function fetchAllData() {
 // ============================================================
 // CARDS
 // ============================================================
-export async function addCard({ clientId, product, collectorId, lockedPricePerDay, kitComposition }) {
+export async function addCard({ clientId, product, collectorId, quantity = 1, lockedPricePerDay, kitComposition }) {
   const isYear = product.product_type === '1_an';
-  const price = lockedPricePerDay ?? product.price_per_day ?? 0;
+  
+  // On multiplie le prix de base par la quantité choisie
+  const basePrice = lockedPricePerDay ?? product.price_per_day ?? 0;
+  const finalPrice = basePrice * quantity;
 
   const { data, error } = await supabase.from('cards').insert({
     client_id: clientId,
@@ -60,7 +63,8 @@ export async function addCard({ clientId, product, collectorId, lockedPricePerDa
     collector_id: collectorId,
     status: 'en_attente',
     period_label: isYear ? 'Mois 1 / 12' : 'Mois 1',
-    locked_price_per_day: price,
+    locked_price_per_day: finalPrice, // Prix total par jour
+    quantity: quantity,               // Nouvelle colonne
     current_month: isYear ? 1 : null,
     total_months: isYear ? 12 : null,
     months_completed: isYear ? 0 : null,
@@ -69,7 +73,7 @@ export async function addCard({ clientId, product, collectorId, lockedPricePerDa
 
   if (error) { console.error('addCard:', error); return null; }
   emitChange();
-  return data; // trigger create_card_days génère les 31 jours
+  return data;
 }
 
 export async function activateCard(cardId, activatedBy) {
@@ -347,4 +351,21 @@ export async function reviewProfileChangeRequest(reqId, status, adminNote, revie
     reviewed_by: reviewedBy, reviewed_at: new Date().toISOString(),
   }).eq('id', reqId);
   emitChange();
+}
+
+// ============================================================
+// CARDS (Suite)
+// ============================================================
+export async function deleteCard(cardId) {
+  const { error } = await supabase
+    .from('cards')
+    .delete()
+    .eq('id', cardId);
+
+  if (error) {
+    console.error('deleteCard:', error);
+    return { error: error.message };
+  }
+  emitChange();
+  return { success: true };
 }

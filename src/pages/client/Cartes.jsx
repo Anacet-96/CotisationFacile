@@ -1,22 +1,38 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UserCheck, Plus, Check, Lock, CreditCard, ArrowRight } from 'lucide-react';
+import { UserCheck, Plus, Check, Lock, CreditCard, ArrowRight, Trash2, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useMockStore } from '../../lib/mockStore';
+import { useMockStore, deleteCard } from '../../lib/mockStore';
 import { formatFCFA, cx, cardStatusLabel, getCardDaysForMonth } from '../../lib/helpers';
 import Header from '../../components/layout/Header';
 import Card31 from '../../components/ui/Card31';
 import ProgressBar from '../../components/ui/ProgressBar';
 import Badge from '../../components/ui/Badge';
 import ProductImage from '../../components/ui/ProductImage';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 
 export default function Cartes() {
   const { user } = useAuth();
   const store = useMockStore();
+  const [cardToDelete, setCardToDelete] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const myCards = store.cards.filter(c => c.client_id === user.id);
   const collector = store.users.find(u => u.id === user?.collector_id);
   const firstname = (user?.name || '').split(' ')[0];
+
+  async function confirmDelete() {
+    if (!cardToDelete || loading) return;
+    setLoading(true);
+    const res = await deleteCard(cardToDelete.id);
+    setLoading(false);
+    if (res?.success) {
+      setCardToDelete(null);
+    } else {
+      alert("Erreur lors de l'annulation.");
+    }
+  }
 
   return (
     <>
@@ -75,19 +91,47 @@ export default function Cartes() {
           </div>
         )}
 
-        {/* Grille — 3 colonnes sur lg+ */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {myCards.map(card => (
-            <CarteItem key={card.id} card={card} store={store} />
+            <CarteItem key={card.id} card={card} store={store} onDelete={() => setCardToDelete(card)} />
           ))}
         </div>
       </div>
+
+      {/* Modal de suppression */}
+      <Modal
+        open={!!cardToDelete}
+        onClose={() => !loading && setCardToDelete(null)}
+        title="Annuler la demande"
+        footer={
+          <>
+            <Button variant="ghost" className="flex-1" onClick={() => setCardToDelete(null)} disabled={loading}>
+              Non, garder
+            </Button>
+            <Button className="flex-1 bg-red-500 hover:bg-red-600" onClick={confirmDelete} disabled={loading}>
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <><Trash2 size={16} /> Oui, supprimer</>}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+            <Trash2 size={22} className="text-red-500" />
+          </div>
+          <p className="text-sm">
+            Voulez-vous vraiment supprimer définitivement la demande pour <b>{cardToDelete?.quantity > 1 ? `${cardToDelete.quantity}x ` : ''}{store.products.find(p => p.id === cardToDelete?.product_id)?.name}</b> ?
+          </p>
+        </div>
+        <p className="text-xs text-muted">
+          Cette action est irréversible. Les frais de carte n'ont pas encore été payés.
+        </p>
+      </Modal>
     </>
   );
 }
 
 // ============================================================
-function CarteItem({ card, store }) {
+function CarteItem({ card, store, onDelete }) {
   const product = store.products.find(p => p.id === card.product_id);
   const isYear = product?.product_type === '1_an';
   const isKit = product?.product_type === 'kit';
@@ -97,13 +141,11 @@ function CarteItem({ card, store }) {
   const days = getCardDaysForMonth(card, store.cardDays, selectedMonth, isYear);
   const filledInMonth = days.filter(d => d.filled).length;
 
-  // Progression globale
   let globalFilled, globalTotal;
   if (isYear) {
     const monthsCompleted = card.months_completed || 0;
     const totalMonths = card.total_months || 12;
-    const filledCurrent = getCardDaysForMonth(card, store.cardDays, currentMonth, true)
-      .filter(d => d.filled).length;
+    const filledCurrent = getCardDaysForMonth(card, store.cardDays, currentMonth, true).filter(d => d.filled).length;
     globalFilled = monthsCompleted * 31 + filledCurrent;
     globalTotal = totalMonths * 31;
   } else {
@@ -112,17 +154,9 @@ function CarteItem({ card, store }) {
   }
   const globalPercent = Math.round((globalFilled / globalTotal) * 100);
 
-  const statusColor =
-    card.status === 'actif' ? 'success' :
-    card.status === 'en_attente' ? 'warning' : 'neutral';
-  const statusLabel =
-    card.status === 'actif' ? 'Carte active' :
-    card.status === 'en_attente' ? "En attente d'activation" :
-    cardStatusLabel(card.status);
-
-  const durationLabel =
-    isYear ? `1 an (${card.total_months || 12} mois)` :
-    isKit ? 'Kit (31 jours)' : '1 mois (31 jours)';
+  const statusColor = card.status === 'actif' ? 'success' : card.status === 'en_attente' ? 'warning' : 'neutral';
+  const statusLabel = card.status === 'actif' ? 'Carte active' : card.status === 'en_attente' ? "En attente" : cardStatusLabel(card.status);
+  const durationLabel = isYear ? `1 an` : isKit ? 'Kit' : '1 mois';
 
   return (
     <div className="card flex flex-col gap-3">
@@ -144,7 +178,7 @@ function CarteItem({ card, store }) {
       <div>
         <div className="flex items-center justify-between gap-2">
           <h4 className="font-heading font-bold text-lg leading-tight truncate">
-            {product?.name}
+            {card.quantity > 1 ? `${card.quantity}x ` : ''}{product?.name}
           </h4>
           {isYear && (
             <select
@@ -189,6 +223,15 @@ function CarteItem({ card, store }) {
         </div>
         <Card31 days={days} readOnly compact />
       </div>
+
+      {card.status === 'en_attente' && (
+        <button
+          onClick={onDelete}
+          className="text-xs font-semibold text-red-500 text-center py-2 hover:bg-red-500/10 rounded-lg transition"
+        >
+          Annuler cette demande
+        </button>
+      )}
 
       <Link to={`/client/carte/${card.id}`} className="btn-ghost w-full mt-1 text-sm">
         Voir le détail <ArrowRight size={16} />

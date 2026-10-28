@@ -8,16 +8,18 @@ import Header from '../../components/layout/Header';
 import Card31 from '../../components/ui/Card31';
 import ProgressBar from '../../components/ui/ProgressBar';
 import Badge from '../../components/ui/Badge';
+import Button from '../../components/ui/Button';
+import ProductImage from '../../components/ui/ProductImage';
 
 export default function CarteDetail() {
   const { id } = useParams();
   const { user } = useAuth();
   const nav = useNavigate();
 
-const store = useMockStore();
-const card = store.cards.find(c => c.id === id && c.client_id === user.id);
-const product = store.products.find(p => p.id === card?.product_id);
-const collector = store.users.find(u => u.id === card?.collector_id);
+  const store = useMockStore();
+  const card = store.cards.find(c => c.id === id && c.client_id === user.id);
+  const product = store.products.find(p => p.id === card?.product_id);
+  const collector = store.users.find(u => u.id === card?.collector_id);
   const isYear = product?.product_type === '1_an';
   const currentMonth = card?.current_month || 1;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -68,16 +70,14 @@ const collector = store.users.find(u => u.id === card?.collector_id);
         {/* Bloc produit compact */}
         <div className="card">
           <div className="flex gap-3 items-start">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-gradient-to-br from-primary-light/15 to-secondary-light/15 dark:from-primary-dark/25 dark:to-secondary-dark/25 flex items-center justify-center shrink-0">
-              <span className="font-mono text-lg font-bold text-primary-light dark:text-primary-dark">
-                {product?.name?.slice(0, 3).toUpperCase()}
-              </span>
+            <div className="w-20 sm:w-24 shrink-0">
+              <ProductImage product={product} />
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2 mb-1">
                 <h2 className="font-heading font-bold text-base sm:text-lg leading-tight truncate">
-                  {product?.name}
+                  {card.quantity > 1 ? `${card.quantity}x ` : ''}{product?.name}
                 </h2>
                 <Badge color={card.status === 'actif' ? 'success' : card.status === 'en_attente' ? 'warning' : 'neutral'}>
                   {cardStatusLabel(card.status)}
@@ -173,6 +173,23 @@ const collector = store.users.find(u => u.id === card?.collector_id);
             </div>
           </div>
         </div>
+
+        {card.status === 'en_attente' && (
+          <div className="mt-4">
+            <Button
+              variant="ghost"
+              className="w-full text-red-500 border-red-500/30"
+              onClick={async () => {
+                if (!confirm("Voulez-vous vraiment annuler cette demande ?")) return;
+                const { deleteCard } = await import('../../lib/mockStore');
+                const res = await deleteCard(card.id);
+                if (res?.success) nav('/client');
+              }}
+            >
+              Annuler la demande
+            </Button>
+          </div>
+        )}
 
       </div>
     </>

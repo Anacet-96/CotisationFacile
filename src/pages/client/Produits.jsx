@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Info, ShoppingCart, Sparkles, Search, CheckCircle2, Loader2 } from 'lucide-react';
+import { Info, ShoppingCart, Sparkles, Search, CheckCircle2, Loader2, Minus, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useMockStore, addCard, addNotification } from '../../lib/mockStore';
 import { formatFCFA, productTypeLabel, cx } from '../../lib/helpers';
@@ -24,6 +24,10 @@ export default function Produits() {
   const [query, setQuery] = useState('');
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // État pour la modale de sélection
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
 
   const produits = useMemo(() => {
     return store.products.filter(p => {
@@ -37,8 +41,18 @@ export default function Produits() {
     });
   }, [store.products, filtre, query]);
 
-  async function demanderProduit(product) {
+  function openModal(product) {
+    setSelectedProduct(product);
+    setQuantity(1);
+  }
+
+  function closeModal() {
     if (loading) return;
+    setSelectedProduct(null);
+  }
+
+  async function confirmDemande() {
+    if (loading || !selectedProduct) return;
 
     const collectorId = user?.collector_id;
     if (!collectorId) {
@@ -50,9 +64,10 @@ export default function Produits() {
 
     const newCard = await addCard({
       clientId: user.id,
-      product,
+      product: selectedProduct,
       collectorId,
-      lockedPricePerDay: product.price_per_day,
+      quantity: quantity,
+      lockedPricePerDay: selectedProduct.price_per_day,
     });
 
     if (!newCard) {
@@ -62,23 +77,25 @@ export default function Produits() {
     }
 
     const collector = store.users.find(u => u.id === collectorId);
+    const qtyLabel = quantity > 1 ? `${quantity}x ` : '';
 
     await addNotification({
       userId: user.id,
       type: 'carte_creee',
-      message: `Vous avez demandé ${product.name}. Votre collecteur ${collector?.name || ''} va vous contacter.`,
+      message: `Vous avez demandé ${qtyLabel}${selectedProduct.name}. Votre collecteur ${collector?.name || ''} va vous contacter.`,
       link: `/client/carte/${newCard.id}`,
     });
 
     await addNotification({
       userId: collectorId,
       type: 'nouvelle_demande_client',
-      message: `${user.name} a demandé le produit ${product.name}. À valider.`,
+      message: `${user.name} a demandé ${qtyLabel}${selectedProduct.name}. À valider.`,
       link: `/collecteur/client/${user.id}`,
     });
 
     setLoading(false);
-    setSuccess({ productName: product.name });
+    setSelectedProduct(null);
+    setSuccess({ productName: `${qtyLabel}${selectedProduct.name}` });
   }
 
   if (success) {
@@ -208,8 +225,8 @@ export default function Produits() {
                     <ShoppingCart size={18} /> Composer mon kit
                   </Link>
                 ) : (
-                  <Button className="w-full mt-auto" onClick={() => demanderProduit(p)} disabled={loading}>
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : 'Demander ce produit'}
+                  <Button className="w-full mt-auto" onClick={() => openModal(p)}>
+                    Demander ce produit
                   </Button>
                 )}
               </div>
@@ -217,6 +234,60 @@ export default function Produits() {
           })}
         </div>
       </div>
+
+      {/* MODALE DE SÉLECTION DE QUANTITÉ */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
+          <div className="bg-card-light dark:bg-card-dark w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-5">
+            <h2 className="font-heading font-bold text-lg mb-1">Demander ce produit</h2>
+            <p className="text-sm text-muted mb-4">{selectedProduct.name}</p>
+
+            <div className="mb-6">
+              <label className="text-xs font-semibold text-muted block mb-2">Nombre de produits</label>
+              <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-xl p-2">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                  className="w-10 h-10 rounded-lg bg-white dark:bg-card-dark flex items-center justify-center shadow-sm disabled:opacity-50"
+                  disabled={quantity <= 1}
+                >
+                  <Minus size={18} />
+                </button>
+                <span className="font-mono font-bold text-xl">{quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(q => q + 1)}
+                  className="w-10 h-10 rounded-lg bg-white dark:bg-card-dark flex items-center justify-center shadow-sm"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-primary-light/10 dark:bg-primary-dark/15 p-3 space-y-1.5 text-sm mb-5">
+              <div className="flex justify-between">
+                <span className="text-muted">Prix unitaire/jour</span>
+                <span className="font-mono font-semibold">{formatFCFA(selectedProduct.price_per_day)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-primary-light/20 dark:border-primary-dark/20">
+                <span className="font-semibold">Nouvelle mise/jour</span>
+                <span className="font-mono font-bold text-primary-light dark:text-primary-dark">
+                  {formatFCFA(selectedProduct.price_per_day * quantity)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="ghost" className="flex-1" onClick={closeModal} disabled={loading}>
+                Annuler
+              </Button>
+              <Button className="flex-1" onClick={confirmDemande} disabled={loading}>
+                {loading ? <Loader2 size={16} className="animate-spin" /> : 'Confirmer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
