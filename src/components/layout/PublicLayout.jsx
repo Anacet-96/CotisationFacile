@@ -29,6 +29,7 @@ export default function PublicLayout() {
           </Link>
 
           {/* Actions */}
+                    {/* Actions */}
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -43,17 +44,12 @@ export default function PublicLayout() {
                 Mon espace
               </Link>
             ) : (
-              <>
-                <Link
-                  to="/connexion"
-                  className="hidden sm:inline text-sm font-semibold text-muted px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-                >
-                  Connexion
-                </Link>
-                <Link to="/inscription" className="btn-primary text-sm">
-                  Inscription
-                </Link>
-              </>
+              <Link
+                to="/connexion"
+                className="btn-primary text-sm"
+              >
+                Connexion
+              </Link>
             )}
           </div>
         </div>

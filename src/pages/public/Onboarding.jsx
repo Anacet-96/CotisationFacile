@@ -80,10 +80,6 @@ export default function Onboarding() {
       <div className="p-6 max-w-lg mx-auto w-full space-y-3">
         {isLast ? (
           <>
-            <Button className="w-full" onClick={() => nav('/inscription')}>
-              Créer mon compte
-            </Button>
-
             {/* Bouton Installer l'app */}
             {isInstalled ? (
               <div className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-secondary-light/10 dark:bg-secondary-dark/15 text-secondary-light dark:text-secondary-dark text-sm font-semibold min-h-[48px]">
@@ -99,28 +95,26 @@ export default function Onboarding() {
               </div>
             )}
 
-            <Link
-              to="/connexion"
-              className="block text-center text-sm text-muted py-2"
-            >
-              J'ai déjà un compte
-            </Link>
-          </>
-        ) : (
-          <div className="flex gap-3">
-            {!isFirst && (
-              <button
-                onClick={() => setStep(s => s - 1)}
-                className="btn-ghost px-4 shrink-0"
-                aria-label="Précédent"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <Button className="flex-1" onClick={() => setStep(s => s + 1)}>
-              Suivant <ChevronRight size={18} />
+            {/* Bouton Connexion */}
+            <Button className="w-full" onClick={() => nav('/connexion')}>
+              Accéder à mon compte <ChevronRight size={18} />
             </Button>
-          </div>
+          </>
+        ) :  (
+        <div className="flex gap-3">
+          {!isFirst && (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="btn-ghost px-4 shrink-0"
+              aria-label="Précédent"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          <Button className="flex-1" onClick={() => setStep(s => s + 1)}>
+            Suivant <ChevronRight size={18} />
+          </Button>
+        </div>
         )}
 
         {!isLast && (

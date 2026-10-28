@@ -83,22 +83,24 @@ export function AuthProvider({ children }) {
       return { error: translateError(error.message) };
     }
 
+    // FORCER LE RAFRAÎCHISSEMENT DU TOKEN
+    await supabase.auth.refreshSession();
+
     const u = await buildUser(data.user);
     if (!u) {
       await supabase.auth.signOut();
       return { error: 'Profil introuvable. Contactez un administrateur.' };
     }
 
-    if (u.status === 'rejete') {
+    if (u.status === 'rejete' && u.role === 'client') {
       await supabase.auth.signOut();
       return { error: 'Votre compte a été rejeté.' };
     }
 
-    if (u.status === 'en_attente') {
+    if (u.status === 'en_attente' && u.role === 'client') {
       await supabase.auth.signOut();
       return {
-        error:
-          "Votre compte est en attente de validation par la secrétaire. Vous serez notifié dès qu'il sera activé.",
+        error: "Votre compte est en attente de validation par la secrétaire. Vous serez notifié dès qu'il sera activé.",
       };
     }
 

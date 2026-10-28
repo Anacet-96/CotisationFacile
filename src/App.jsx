@@ -11,7 +11,6 @@ import { Eye, EyeOff } from 'lucide-react';
 
 // Public
 import Onboarding from './pages/public/Onboarding';
-import Inscription from './pages/public/Inscription';
 import Confirmation from './pages/public/Confirmation';
 import HorsLigne from './pages/public/HorsLigne';
 import CommentCaMarche from './pages/public/CommentCaMarche';
@@ -131,6 +130,11 @@ function LoginPage() {
 
           {err && <p className="text-sm text-red-500">{err}</p>}
           <Button type="submit" className="w-full">Se connecter</Button>
+
+           <p className="text-center text-xs text-muted mt-8 leading-relaxed">
+          Les comptes sont créés par nos collaborateurs. <br />
+          Contactez votre collecteur ou l'administration pour obtenir vos accès.
+        </p>
         </form>
       </div>
     </div>
@@ -150,7 +154,6 @@ export default function App() {
 
         <Route element={<PublicLayout />}>
           <Route path="/connexion" element={<LoginPage />} />
-          <Route path="/inscription" element={<Inscription />} />
           <Route path="/mot-de-passe-oublie" element={<MotDePasseOublie />} />
           <Route path="/comment-ca-marche" element={<CommentCaMarche />} />
         </Route>

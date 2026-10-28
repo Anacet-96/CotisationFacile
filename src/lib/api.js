@@ -211,7 +211,11 @@ export async function assignCollectorToClient(clientId, collectorId) {
 }
 
 export async function changeUserRole(userId, newRole) {
-  await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+  // Si on promeut (non-client), on active toujours le compte
+  const updates = { role: newRole };
+  if (newRole !== 'client') updates.status = 'actif';
+
+  await supabase.from('profiles').update(updates).eq('id', userId);
   emitChange();
 }
 
