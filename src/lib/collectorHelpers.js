@@ -5,13 +5,10 @@
 export function isCollectorBlocked(collectorId, cards, validations, cardDays = []) {
   if (!collectorId) return { blocked: false };
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   // ============================================================
-  // CAS 1 : Journée d'aujourd'hui validée → PAUSE jusqu'à demain
+  // CAS 1 : Journée d'aujourd'hui validée → pause jusqu'à demain
   // ============================================================
   const todayValidated = validations.find(
     v => v.collector_id === collectorId && v.date === todayStr
@@ -26,43 +23,50 @@ export function isCollectorBlocked(collectorId, cards, validations, cardDays = [
   }
 
   // ============================================================
-  // CAS 2 : Hier validée → OK, pas de blocage
-  // ============================================================
-  const yesterdayValidated = validations.find(
-    v => v.collector_id === collectorId && v.date === yesterdayStr
-  );
-  if (yesterdayValidated) return { blocked: false };
-
-  // ============================================================
-  // CAS 3 : Hier non validée MAIS activité hier → BLOQUÉ
+  // CAS 2 : Cherche la plus ancienne date d'activité non validée
+  // (peu importe si c'est hier, avant-hier, etc.)
   // ============================================================
   const myCards = cards.filter(c => c.collector_id === collectorId);
   const myCardIds = myCards.map(c => c.id);
 
-  const hadMisesYesterday = cardDays.some(
-    d =>
-      myCardIds.includes(d.card_id) &&
-      d.filled &&
-      d.filled_at &&
-      d.filled_at.slice(0, 10) === yesterdayStr
-  );
+  const activityDates = new Set();
 
-  const hadActivationsYesterday = myCards.some(
-    c => c.activated_at && c.activated_at.slice(0, 10) === yesterdayStr
-  );
+  // Activations de cartes
+  myCards.forEach(c => {
+    if (c.activated_at) {
+      const date = c.activated_at.slice(0, 10);
+      if (date < todayStr) activityDates.add(date);
+    }
+  });
 
-  if (!hadMisesYesterday && !hadActivationsYesterday) {
-    return { blocked: false };
+  // Mises encaissées
+  cardDays.forEach(d => {
+    if (myCardIds.includes(d.card_id) && d.filled && d.filled_at) {
+      const date = d.filled_at.slice(0, 10);
+      if (date < todayStr) activityDates.add(date);
+    }
+  });
+
+  // Filtre celles non validées
+  const unvalidatedDates = [...activityDates]
+    .filter(date => !validations.some(v => v.collector_id === collectorId && v.date === date))
+    .sort(); // du plus ancien au plus récent
+
+  if (unvalidatedDates.length > 0) {
+    const oldestDate = unvalidatedDates[0];
+    const dateLabel = new Date(oldestDate).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: 'long', year: 'numeric',
+    });
+    return {
+      blocked: true,
+      type: 'pending_validation',
+      reason: `Journée du ${dateLabel} en attente de validation par la secrétaire.`,
+      dateStr: oldestDate,
+    };
   }
 
-  return {
-    blocked: true,
-    type: 'yesterday_pending',
-    reason: `Journée du ${yesterday.toLocaleDateString('fr-FR', {
-      day: '2-digit', month: 'long', year: 'numeric',
-    })} en attente de validation par la secrétaire.`,
-    dateStr: yesterdayStr,
-  };
+  // Aucune activité non validée → libre
+  return { blocked: false };
 }
 
 export function getCollectorClients(collectorId, users) {
