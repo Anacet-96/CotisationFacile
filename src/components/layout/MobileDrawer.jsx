@@ -83,19 +83,13 @@ export default function MobileDrawer({ open, onClose }) {
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        {/* Header */}
+        {/* Header avec Logo */}
         <div className="p-4 border-b border-outline/40 flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-primary-light dark:bg-primary-dark flex items-center justify-center shrink-0">
-              <span className="text-white font-heading font-extrabold text-lg">E</span>
-            </div>
-            <div className="min-w-0">
-              <p className="font-heading font-extrabold text-base leading-tight truncate">
-                Emilio
-              </p>
-              <p className="text-[10px] text-muted capitalize truncate">{role}</p>
-            </div>
-          </div>
+          <img
+            src="/emilio-transports-logo.svg"
+            alt="Emilio Transports"
+            className="h-8 w-auto"
+          />
           <button
             onClick={onClose}
             className="p-2 -mr-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
@@ -105,13 +99,17 @@ export default function MobileDrawer({ open, onClose }) {
           </button>
         </div>
 
-        {/* User */}
+        {/* Infos Utilisateur */}
         <div className="p-4 border-b border-outline/40">
-          <p className="text-xs text-muted">Connecté en tant que</p>
+          <p className="text-xs text-muted mb-0.5">Connecté en tant que</p>
           <p className="font-semibold text-sm truncate">{user?.name}</p>
-          <p className="text-xs text-muted font-mono truncate">{user?.email}</p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-muted font-mono truncate">{user?.email}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary-light dark:text-primary-dark bg-primary-light/10 dark:bg-primary-dark/20 px-2 py-0.5 rounded-md">
+              {role}
+            </span>
+          </div>
         </div>
-
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {items.map(({ to, label, icon: Icon, end }) => (

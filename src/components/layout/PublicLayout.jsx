@@ -19,13 +19,12 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-30 border-b border-outline/30 bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-primary-light dark:bg-primary-dark flex items-center justify-center">
-              <span className="text-white font-heading font-extrabold text-lg">E</span>
-            </div>
-            <span className="font-heading font-extrabold text-lg hidden sm:inline">
-              Emilio Transports
-            </span>
+                   <Link to="/" className="flex items-center gap-2">
+            <img 
+              src="/emilio-transports-logo.svg" 
+              alt="Emilio Transports" 
+              className="h-8 sm:h-10 w-auto" 
+            />
           </Link>
 
           {/* Actions */}

@@ -91,9 +91,14 @@ export function getDayAccounting(collectorId, dateStr, cards, cardDays, products
   }));
   const misesTotal = misesRows.reduce((sum, r) => sum + r.total_paid, 0);
 
-  // ---- Tableau 3 : Livraisons (1 000 FCFA) ----
+  // ---- Tableau 3 : Livraisons (1 000 FCFA) - UNIQUEMENT 1 mois et Kit ----
   const livraisonsRows = cardsOnDate
-    .filter(c => c.delivery_fee_paid)
+    .filter(c => {
+      // On vérifie que les frais sont payés ET que c'est le bon type de produit
+      const p = products.find(prod => prod.id === c.product_id);
+      const isEligible = p && (p.product_type === '1_mois' || p.product_type === 'kit');
+      return c.delivery_fee_paid && isEligible;
+    })
     .map(c => {
       const client = users.find(u => u.id === c.client_id);
       const product = products.find(p => p.id === c.product_id);

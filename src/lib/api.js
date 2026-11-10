@@ -156,7 +156,7 @@ export async function validateDay(collectorId, dateStr, validatedBy, totalAmount
     userId: collectorId,
     type: 'journee_validee',
     message: `Journée du ${dateLabel} validée par la secrétaire. Vous pouvez reprendre votre activité.`,
-    link: '/collecteur',
+    link: `/collecteur/journee/${dateStr}`,
   });
 
   emitChange();

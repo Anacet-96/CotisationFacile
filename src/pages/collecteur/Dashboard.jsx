@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Users, UserPlus, Phone, MapPin, ArrowRight, TrendingUp } from 'lucide-react';
+import { Users, UserPlus, Phone, MapPin, ArrowRight, TrendingUp, Calendar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useMockStore } from '../../lib/mockStore';
 import { getCollectorClients, getCollectorDayStats } from '../../lib/collectorHelpers';
@@ -25,6 +25,11 @@ export default function Dashboard() {
   const yesterdayValidated = store.dailyValidations.some(
     v => v.collector_id === user.id && v.date === yesterday
   );
+
+  const myValidations = store.dailyValidations
+    .filter(v => v.collector_id === user.id)
+    .sort((a, b) => new Date(b.date) - new Date(a.date)) // Les plus récentes en premier
+    .slice(0, 5); // On garde les 5 dernières
 
   return (
     <>
@@ -73,6 +78,8 @@ export default function Dashboard() {
             <StatCard label="Livraisons" value={stats.livraisonsCount} amount={stats.livraisonsAmount} />
           </div>
         </div>
+
+       
 
         {/* Mes clients */}
         <div>
@@ -134,6 +141,38 @@ export default function Dashboard() {
             })}
           </div>
         </div>
+
+         {/* Dernières journées validées */}
+        {myValidations.length > 0 && (
+          <div>
+            <h3 className="font-heading font-bold text-lg mb-3 flex items-center gap-2">
+              <Calendar size={20} className="text-primary-light dark:text-primary-dark" />
+              Dernières journées validées
+            </h3>
+            <div className="space-y-2">
+              {myValidations.map(v => (
+                <Link
+                  key={v.id}
+                  to={`/collecteur/journee/${v.date}`}
+                  className="card flex items-center justify-between hover:shadow-md transition"
+                >
+                  <div>
+                    <p className="font-semibold text-sm capitalize">
+                      {new Date(v.date).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                    </p>
+                    <p className="text-xs text-muted">Validée par la secrétaire</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono font-bold text-primary-light dark:text-primary-dark">
+                      {formatFCFA(v.total_amount)}
+                    </p>
+                    <span className="text-[10px] text-muted">Voir le détail →</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

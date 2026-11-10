@@ -45,12 +45,16 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-outline/40 bg-card-light dark:bg-card-dark h-screen sticky top-0">
       <div className="p-5 border-b border-outline/40">
-        <h1 className="font-heading font-extrabold text-xl text-primary-light dark:text-primary-dark">
-          Emilio Transports
-        </h1>
-        <p className="text-xs text-muted mt-1 truncate">
-          {user?.name} · <span className="capitalize">{role}</span>
-        </p>
+        <img
+          src="/emilio-transports-logo.svg"
+          alt="Emilio Transports"
+          className="h-10 w-auto mb-4 "
+        />
+        <div className="flex justify-between items-center gap-2">
+          <span className="text-sm font-semibold truncate">{user?.name} </span>  
+          <span className="text-xs truncate 
+          text-[10px] font-bold uppercase tracking-wider text-primary-light dark:text-primary-dark bg-primary-light/10 dark:bg-primary-dark/20 px-2 py-0.5 rounded-md"> {role}</span>
+        </div>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">

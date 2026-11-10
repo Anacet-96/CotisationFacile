@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Icône Emilio Transports</title>
+  <desc id="desc">Trois pièces empilées et une flèche ascendante, symbole de l'épargne progressive.</desc>
+  <rect width="512" height="512" rx="112" fill="#f9f9fd"/>
+  <g transform="translate(49 88)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 292v-54c0-22 54-40 120-40s120 18 120 40v54c0 22-54 40-120 40S24 314 24 292Z" fill="#421cc8"/>
+    <ellipse cx="144" cy="238" rx="120" ry="40" fill="#7c5dfa"/>
+    <path d="M24 265c0 22 54 40 120 40s120-18 120-40" fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="6"/>
+    <path d="M96 208v-57c0-22 54-40 120-40s120 18 120 40v57c0 22-54 40-120 40s-120-18-120-40Z" fill="#421cc8"/>
+    <ellipse cx="216" cy="151" rx="120" ry="40" fill="#7c5dfa"/>
+    <path d="M96 178c0 22 54 40 120 40s120-18 120-40" fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="6"/>
+    <path d="M168 124V72c0-22 54-40 120-40s120 18 120 40v52c0 22-54 40-120 40s-120-18-120-40Z" fill="#1f6b45"/>
+    <ellipse cx="288" cy="72" rx="120" ry="40" fill="#24a568"/>
+    <path d="M168 99c0 22 54 40 120 40s120-18 120-40" fill="none" stroke="#ffffff" stroke-opacity=".48" stroke-width="6"/>
+    <path d="M124 238h40M224 151h40M296 72h40" stroke="#ffffff" stroke-width="9" stroke-opacity=".9"/>
+    <path d="M49 144 145 91 220 105 360 10" fill="none" stroke="#1f6b45" stroke-width="17"/>
+    <path d="m311 9 51 1-10 51" fill="none" stroke="#1f6b45" stroke-width="17"/>
+  </g>
+</svg>

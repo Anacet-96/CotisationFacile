@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320" role="img" aria-labelledby="title desc">
+  <title id="title">Emilio Transports</title>
+  <desc id="desc">Logo représentant une accumulation de pièces avec une flèche ascendante, symbole d'épargne progressive.</desc>
+  <defs>
+    <style>
+      .brand { font-family: "Manrope", "Arial", sans-serif; font-weight: 800; }
+      .tag { font-family: "Hanken Grotesk", "Arial", sans-serif; font-weight: 500; letter-spacing: 2.2px; }
+    </style>
+  </defs>
+  <!-- Symbole : pièces accumulées -->
+  <g transform="translate(34 24)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- pile gauche -->
+    <path d="M34 218v-30c0-15 38-27 84-27s84 12 84 27v30c0 15-38 27-84 27s-84-12-84-27Z" fill="#421cc8"/>
+    <ellipse cx="118" cy="188" rx="84" ry="27" fill="#7c5dfa"/>
+    <path d="M34 203c0 15 38 27 84 27s84-12 84-27" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="4"/>
+    <!-- pile centrale -->
+    <path d="M102 166v-35c0-15 38-27 84-27s84 12 84 27v35c0 15-38 27-84 27s-84-12-84-27Z" fill="#421cc8"/>
+    <ellipse cx="186" cy="131" rx="84" ry="27" fill="#7c5dfa"/>
+    <path d="M102 147c0 15 38 27 84 27s84-12 84-27" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="4"/>
+    <!-- pile haute -->
+    <path d="M170 111V78c0-15 38-27 84-27s84 12 84 27v33c0 15-38 27-84 27s-84-12-84-27Z" fill="#1f6b45"/>
+    <ellipse cx="254" cy="78" rx="84" ry="27" fill="#24a568"/>
+    <path d="M170 94c0 15 38 27 84 27s84-12 84-27" fill="none" stroke="#ffffff" stroke-opacity=".45" stroke-width="4"/>
+    <!-- traits de valeur sur les pièces -->
+    <path d="M104 188h28M172 131h28M240 78h28" stroke="#ffffff" stroke-opacity=".9" stroke-width="7"/>
+    <!-- flèche ascendante -->
+    <path d="M64 112 130 75 184 88 282 20" fill="none" stroke="#1f6b45" stroke-width="13"/>
+    <path d="m247 19 39 1-8 39" fill="none" stroke="#1f6b45" stroke-width="13"/>
+  </g>
+  <!-- Nom -->
+  <text x="410" y="148" class="brand" font-size="76" fill="#421cc8">Emilio</text>
+  <text x="414" y="207" class="brand" font-size="39" letter-spacing="7" fill="#1a1c1f">TRANSPORTS</text>
+  <rect x="414" y="230" width="78" height="5" rx="2.5" fill="#1f6b45"/>
+  <text x="507" y="239" class="tag" font-size="17" fill="#787587">CHAQUE COTISATION COMPTE</text>
+</svg>

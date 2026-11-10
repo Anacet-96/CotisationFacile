@@ -69,17 +69,18 @@ export default function CommentCaMarche() {
           </div>
           <ul className="text-sm space-y-2">
             <li className="flex justify-between">
-              <span className="text-muted">Frais de carte</span>
+              <span className="text-muted">Frais de carte (tous les produits)</span>
               <span className="font-mono font-semibold">200 FCFA</span>
             </li>
             <li className="flex justify-between">
-              <span className="text-muted">Frais de livraison (1 mois / kit)</span>
+              <span className="text-muted">Frais de livraison (1 mois / Kit)</span>
               <span className="font-mono font-semibold">1 000 FCFA</span>
             </li>
           </ul>
           <p className="text-xs text-muted mt-3 flex items-start gap-2">
             <Info size={14} className="shrink-0 mt-0.5" />
             Les frais de carte sont payés au collecteur avant le début de la cotisation.
+            Les frais de livraison de 1 000 FCFA ne s'appliquent pas aux produits de 1 an.
           </p>
         </div>
       </div>

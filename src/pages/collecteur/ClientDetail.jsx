@@ -53,6 +53,46 @@ export default function ClientDetail() {
     [client, store.profileChangeRequests]
   );
 
+  // ============================================================
+  // CALCUL DU RÉSUMÉ JOURNALIER POUR CE CLIENT
+  // ============================================================
+  const todaySummary = useMemo(() => {
+    if (!client) return { cards: 0, mises: 0, livraisons: 0, total: 0 };
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const myCardIds = clientCards.map(c => c.id);
+
+    // 1. Cartes activées aujourd'hui pour ce client
+    const cardsToday = clientCards.filter(c =>
+      c.activated_at && c.activated_at.slice(0, 10) === todayStr && c.card_fee_paid
+    );
+    const cardsTotal = cardsToday.length * 200;
+
+    // 2. Mises encaissées aujourd'hui pour ce client
+    const misesToday = store.cardDays.filter(d =>
+      myCardIds.includes(d.card_id) &&
+      d.filled &&
+      d.filled_at &&
+      d.filled_at.slice(0, 10) === todayStr
+    );
+    const misesTotal = misesToday.reduce((sum, d) => sum + (d.amount || 0), 0);
+
+    // 3. Livraisons payées aujourd'hui pour ce client (UNIQUEMENT 1_mois et kit)
+    const livraisonsToday = clientCards.filter(c => {
+      if (!c.activated_at || c.activated_at.slice(0, 10) !== todayStr || !c.delivery_fee_paid) return false;
+      const p = store.products.find(prod => prod.id === c.product_id);
+      return p && (p.product_type === '1_mois' || p.product_type === 'kit');
+    });
+    const livraisonsTotal = livraisonsToday.length * 1000;
+
+    return {
+      cards: cardsTotal,
+      mises: misesTotal,
+      livraisons: livraisonsTotal,
+      total: cardsTotal + misesTotal + livraisonsTotal
+    };
+  }, [client, clientCards, store.cardDays]);
+
   if (!client) {
     return (
       <>
@@ -181,6 +221,7 @@ export default function ClientDetail() {
           <ArrowLeft size={16} /> Retour
         </button>
 
+        {/* Infos client */}
         <div className="card">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0">
@@ -216,7 +257,32 @@ export default function ClientDetail() {
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        {/* --- NOUVEAU : RÉSUMÉ JOURNALIER DU CLIENT --- */}
+        <div className="rounded-2xl bg-gradient-to-br from-primary-light to-indigo-700 dark:from-primary-dark dark:to-indigo-600 text-white p-5 shadow-lg">
+          <p className="text-[10px] font-semibold opacity-80 uppercase tracking-wide">
+            Total général encaissé aujourd'hui
+          </p>
+          <p className="font-mono font-extrabold text-3xl mt-1">
+            {formatFCFA(todaySummary.total)}
+          </p>
+          <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-3 gap-2 text-xs">
+            <div>
+              <p className="opacity-70">Cartes</p>
+              <p className="font-mono font-semibold">{formatFCFA(todaySummary.cards)}</p>
+            </div>
+            <div>
+              <p className="opacity-70">Mises</p>
+              <p className="font-mono font-semibold">{formatFCFA(todaySummary.mises)}</p>
+            </div>
+            <div>
+              <p className="opacity-70">Livraisons</p>
+              <p className="font-mono font-semibold">{formatFCFA(todaySummary.livraisons)}</p>
+            </div>
+          </div>
+        </div>
+        {/* --------------------------------------------- */}
+
+        <div className="flex items-center justify-between mt-2">
           <h3 className="font-heading font-bold text-lg">
             Ses cartes <span className="text-muted font-normal text-sm">({clientCards.length})</span>
           </h3>
@@ -356,7 +422,9 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
 
       <div>
         <div className="flex items-center justify-between gap-2">
-          <h4 className="font-heading font-bold truncate">{prod?.name}</h4>
+          <h4 className="font-heading font-bold truncate">
+            {card.quantity > 1 ? `${card.quantity}x ` : ''}{prod?.name}
+          </h4>
           {isYear && (
             <span className="text-[10px] font-mono text-muted shrink-0">
               M{currentMonth}/{card.total_months || 12}
@@ -375,6 +443,23 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
         pendingDays={pending}
         onToggle={blocked || isTermine ? null : onToggle}
       />
+
+      {!blocked && !isTermine && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-muted mt-1 px-1">
+          <div className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+            Sélection
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+            Validé (en attente)
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-primary-light dark:bg-primary-dark"></span>
+            Validé (secrétaire)
+          </div>
+        </div>
+      )}
 
       {pendingCount > 0 && (
         <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">

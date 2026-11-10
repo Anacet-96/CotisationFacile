@@ -34,6 +34,7 @@ import CollecteurNouvelleCarte from './pages/collecteur/NouvelleCarte';
 import CollecteurHistorique from './pages/collecteur/Historique';
 import CollecteurPerformances from './pages/collecteur/Performances';
 import CollecteurProfil from './pages/collecteur/Profil';
+import CollecteurJourneeDetail from './pages/collecteur/JourneeDetail';
 
 // Secrétaire
 import SecretaireDashboard from './pages/secretaire/Dashboard';
@@ -85,6 +86,13 @@ function LoginPage() {
   return (
     <div className="py-12 px-4">
       <div className="max-w-md mx-auto bg-card-light dark:bg-card-dark rounded-2xl border border-outline/40 p-8">
+         <div className="flex justify-center mb-6">
+          <img 
+            src="/emilio-transports-logo.svg" 
+            alt="Emilio Transports" 
+            className="h-12 w-auto" 
+          />
+        </div>
         <p className="text-sm text-muted mb-1">Entrez vos identifiants</p>
         <h1 className="text-3xl font-heading font-extrabold mb-8">Bon retour 👋</h1>
 
@@ -187,6 +195,7 @@ export default function App() {
             <Route path="historique" element={<CollecteurHistorique />} />
             <Route path="performances" element={<CollecteurPerformances />} />
             <Route path="profil" element={<CollecteurProfil />} />
+            <Route path="journee/:date" element={<CollecteurJourneeDetail />} />
           </Route>
 
           {/* Secrétaire */}
