@@ -15,31 +15,75 @@ function emitChange() { listeners.forEach(cb => cb()); }
 // FETCH TOUT (RLS filtre côté serveur selon le rôle)
 // ============================================================
 export async function fetchAllData() {
-  const [
-    productsRes, kitItemsRes, notifsRes,
-    cardsRes, cardDaysRes, usersRes,
-    validationsRes, ordersRes, requestsRes,
-  ] = await Promise.all([
+  // 1. On récupère l'utilisateur actuel
+  const { data: { session } } = await supabase.auth.getSession();
+  const currentUser = session?.user;
+  if (!currentUser) return emptyData();
+
+  // 2. On récupère son profil pour connaître son rôle
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
+  const role = profile?.role;
+
+  // 3. Préparation des requêtes de base (toujours nécessaires)
+  const baseQueries = [
     supabase.from('products').select('*').order('created_at'),
     supabase.from('kit_items').select('*').order('created_at'),
-    supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(1000),
-    supabase.from('cards').select('*').order('created_at', { ascending: false }).limit(5000),
-    supabase.from('card_days').select('*').order('day_number').limit(50000), // <-- LIMITE AUGMENTÉE
-    supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(5000),
-    supabase.from('daily_validations').select('*').order('date', { ascending: false }).limit(5000),
-    supabase.from('custom_orders').select('*').order('created_at', { ascending: false }).limit(1000),
-    supabase.from('profile_change_requests').select('*').order('created_at', { ascending: false }).limit(1000),
-  ]);
+    supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(500),
+    supabase.from('profiles').select('*').limit(5000),
+    supabase.from('custom_orders').select('*').order('created_at', { ascending: false }).limit(500),
+    supabase.from('profile_change_requests').select('*').order('created_at', { ascending: false }).limit(500),
+    supabase.from('daily_validations').select('*').order('date', { ascending: false }).limit(1000),
+  ];
 
-  const all = [productsRes, kitItemsRes, notifsRes, cardsRes, cardDaysRes, usersRes, validationsRes, ordersRes, requestsRes];
-  all.forEach((r, i) => { if (r.error) console.error(`[api] fetch#${i}`, r.error); });
+  // 4. On récupère les cartes et les jours UNIQUEMENT pour l'utilisateur connecté
+  let cardsQuery = supabase.from('cards').select('*').order('created_at', { ascending: false });
+  let cardDaysQuery = supabase.from('card_days').select('*').order('day_number');
+
+  if (role === 'client') {
+    cardsQuery = cardsQuery.eq('client_id', currentUser.id);
+  } else if (role === 'collecteur') {
+    cardsQuery = cardsQuery.eq('collector_id', currentUser.id);
+  }
+  // Si c'est un admin ou une secrétaire, on charge tout (mais avec pagination)
+
+  const [productsRes, kitItemsRes, notifsRes, usersRes, ordersRes, requestsRes, validationsRes, cardsRes] =
+    await Promise.all([...baseQueries, cardsQuery]);
+
+  const allCards = cardsRes.data || [];
+  const cardIds = allCards.map(c => c.id);
+
+  // 5. Si on a des cartes, on charge leurs jours en plusieurs fois (Pagination)
+  let allCardDays = [];
+  if (cardIds.length > 0) {
+    const CHUNK_SIZE = 500; // On charge par paquets de 500
+    for (let i = 0; i < cardIds.length; i += CHUNK_SIZE) {
+      const chunkIds = cardIds.slice(i, i + CHUNK_SIZE);
+      // Pour chaque paquet de 500 cartes, on récupère TOUS les jours (avec pagination interne)
+      let page = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('card_days')
+          .select('*')
+          .in('card_id', chunkIds)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+        if (error) { console.error('[fetchAllData] card_days error:', error); break; }
+        if (!data || data.length === 0) break;
+
+        allCardDays = [...allCardDays, ...data];
+        if (data.length < PAGE_SIZE) break; // Si on a moins que la page max, c'est fini
+        page++;
+      }
+    }
+  }
 
   return {
     products: productsRes.data || [],
     kitItems: kitItemsRes.data || [],
     notifications: notifsRes.data || [],
-    cards: cardsRes.data || [],
-    cardDays: cardDaysRes.data || [],
+    cards: allCards,
+    cardDays: allCardDays,
     users: usersRes.data || [],
     dailyValidations: validationsRes.data || [],
     customOrders: ordersRes.data || [],
@@ -47,12 +91,19 @@ export async function fetchAllData() {
   };
 }
 
+// Petite fonction utilitaire
+function emptyData() {
+  return {
+    products: [], kitItems: [], notifications: [], cards: [], cardDays: [],
+    users: [], dailyValidations: [], customOrders: [], profileChangeRequests: []
+  };
+}
 // ============================================================
 // CARDS
 // ============================================================
 export async function addCard({ clientId, product, collectorId, quantity = 1, lockedPricePerDay, kitComposition }) {
   const isYear = product.product_type === '1_an';
-  
+
   // On multiplie le prix de base par la quantité choisie
   const basePrice = lockedPricePerDay ?? product.price_per_day ?? 0;
   const finalPrice = basePrice * quantity;
@@ -107,7 +158,7 @@ export async function fillCardDays(cardId, monthNumber, dayNumbers, filledBy) {
       .select();
 
     if (error) console.error('fillCardDays update:', error);
-    
+
     // 2. Si le jour n'existe pas en base, on l'insère
     if (!data || data.length === 0) {
       const { error: insertError } = await supabase.from('card_days').insert({
@@ -409,7 +460,7 @@ export async function closeCardMonth(cardId, completedMonth, nextMonth) {
       amount: 0
     });
   }
-  
+
   await supabase.from('card_days').upsert(daysToInsert, { onConflict: 'card_id,month_number,day_number' });
 
   // Mettre à jour la carte
