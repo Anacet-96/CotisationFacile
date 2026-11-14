@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Pencil, Phone, MapPin, Briefcase,
-  Lock, Check, Plus, AlertCircle, Clock, Loader2,
+  Lock, Check, Plus, AlertCircle, Clock, Loader2, ArrowRight, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useMockStore, fillCardDays, activateCard, addProfileChangeRequest, addNotification } from '../../lib/mockStore';
+import { useMockStore, fillCardDays, activateCard, addProfileChangeRequest, addNotification, closeCardMonth } from '../../lib/mockStore';
 import { isCollectorBlocked } from '../../lib/collectorHelpers';
 import { formatFCFA, cx, cardStatusLabel, getCardDaysForMonth } from '../../lib/helpers';
 import Header from '../../components/layout/Header';
@@ -36,6 +36,7 @@ export default function ClientDetail() {
   const [pendingDays, setPendingDays] = useState({});
   const [validerModal, setValiderModal] = useState(null);
   const [activerModal, setActiverModal] = useState(null);
+  const [closeMonthModal, setCloseMonthModal] = useState(null);
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -47,37 +48,32 @@ export default function ClientDetail() {
   const pendingRequests = useMemo(
     () => (client
       ? store.profileChangeRequests.filter(
-        r => r.client_id === client.id && r.status === 'en_attente'
-      )
+          r => r.client_id === client.id && r.status === 'en_attente'
+        )
       : []),
     [client, store.profileChangeRequests]
   );
 
-  // ============================================================
-  // CALCUL DU RÉSUMÉ JOURNALIER POUR CE CLIENT
-  // ============================================================
+  // Résumé journalier (Cartes, Mises, Livraisons)
   const todaySummary = useMemo(() => {
     if (!client) return { cards: 0, mises: 0, livraisons: 0, total: 0 };
-
+    
     const todayStr = new Date().toISOString().slice(0, 10);
     const myCardIds = clientCards.map(c => c.id);
 
-    // 1. Cartes activées aujourd'hui pour ce client
-    const cardsToday = clientCards.filter(c =>
+    const cardsToday = clientCards.filter(c => 
       c.activated_at && c.activated_at.slice(0, 10) === todayStr && c.card_fee_paid
     );
     const cardsTotal = cardsToday.length * 200;
 
-    // 2. Mises encaissées aujourd'hui pour ce client
-    const misesToday = store.cardDays.filter(d =>
-      myCardIds.includes(d.card_id) &&
-      d.filled &&
-      d.filled_at &&
+    const misesToday = store.cardDays.filter(d => 
+      myCardIds.includes(d.card_id) && 
+      d.filled && 
+      d.filled_at && 
       d.filled_at.slice(0, 10) === todayStr
     );
     const misesTotal = misesToday.reduce((sum, d) => sum + (d.amount || 0), 0);
 
-    // 3. Livraisons payées aujourd'hui pour ce client (UNIQUEMENT 1_mois et kit)
     const livraisonsToday = clientCards.filter(c => {
       if (!c.activated_at || c.activated_at.slice(0, 10) !== todayStr || !c.delivery_fee_paid) return false;
       const p = store.products.find(prod => prod.id === c.product_id);
@@ -91,7 +87,7 @@ export default function ClientDetail() {
       livraisons: livraisonsTotal,
       total: cardsTotal + misesTotal + livraisonsTotal
     };
-  }, [client, clientCards, store.cardDays]);
+  }, [client, clientCards, store.cardDays, store.products]);
 
   if (!client) {
     return (
@@ -141,7 +137,7 @@ export default function ClientDetail() {
     const selectedDays = Array.from(pendingDays[card.id] || []);
     const product = store.products.find(p => p.id === card.product_id);
 
-    await fillCardDays(card.id, selectedDays, user.id);
+    await fillCardDays(card.id, card.current_month || 1, selectedDays, user.id);
 
     await addNotification({
       userId: client.id,
@@ -174,6 +170,30 @@ export default function ClientDetail() {
     setActiverModal(null);
     setLoading(false);
     showToast('✅ Carte activée. Frais 200 FCFA enregistrés.');
+  }
+
+  async function confirmCloseMonth() {
+    if (!closeMonthModal || loading) return;
+    setLoading(true);
+    const { card } = closeMonthModal;
+    const product = store.products.find(p => p.id === card.product_id);
+
+    const completed = card.current_month;
+    const next = completed + 1;
+
+    const res = await closeCardMonth(card.id, completed, next);
+
+    if (res?.success) {
+      await addNotification({
+        userId: client.id,
+        type: 'mois_termine',
+        message: `Félicitations ! Vous avez terminé le mois ${completed} de votre carte ${product?.name}. Le mois ${next} commence.`,
+        link: `/client/carte/${card.id}`,
+      });
+      showToast(`✅ Mois ${completed} terminé. Passage au mois ${next} !`);
+      setCloseMonthModal(null);
+    }
+    setLoading(false);
   }
 
   async function handleSaveProfile() {
@@ -257,7 +277,7 @@ export default function ClientDetail() {
           )}
         </div>
 
-        {/* --- NOUVEAU : RÉSUMÉ JOURNALIER DU CLIENT --- */}
+        {/* Résumé journalier */}
         <div className="rounded-2xl bg-gradient-to-br from-primary-light to-indigo-700 dark:from-primary-dark dark:to-indigo-600 text-white p-5 shadow-lg">
           <p className="text-[10px] font-semibold opacity-80 uppercase tracking-wide">
             Total général encaissé aujourd'hui
@@ -280,7 +300,6 @@ export default function ClientDetail() {
             </div>
           </div>
         </div>
-        {/* --------------------------------------------- */}
 
         <div className="flex items-center justify-between mt-2">
           <h3 className="font-heading font-bold text-lg">
@@ -312,7 +331,7 @@ export default function ClientDetail() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clientCards.map(card => (
             <EditableCard
-              key={card.id}
+              key={`${card.id}-${card.current_month}`}
               card={card}
               allDays={store.cardDays}
               blocked={blocked}
@@ -320,6 +339,7 @@ export default function ClientDetail() {
               onToggle={day => toggleDay(card.id, day)}
               onValider={() => openValider(card)}
               onActiver={() => setActiverModal({ card })}
+              onCloseMonth={() => setCloseMonthModal({ card })}
             />
           ))}
         </div>
@@ -355,6 +375,36 @@ export default function ClientDetail() {
           loading={loading}
         />
       )}
+
+      {/* Modal de clôture de mois */}
+      <Modal
+        open={!!closeMonthModal}
+        onClose={() => !loading && setCloseMonthModal(null)}
+        title="Clôturer le mois"
+        footer={
+          <>
+            <Button variant="ghost" className="flex-1" onClick={() => setCloseMonthModal(null)} disabled={loading}>
+              Annuler
+            </Button>
+            <Button className="flex-1" onClick={confirmCloseMonth} disabled={loading}>
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <><Check size={16} /> Confirmer</>}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-12 h-12 rounded-full bg-primary-light/15 dark:bg-primary-dark/20 flex items-center justify-center shrink-0">
+            <Sparkles size={22} className="text-primary-light dark:text-primary-dark" />
+          </div>
+          <p className="text-sm">
+            Félicitations, les 31 jours du mois <b>{closeMonthModal?.card?.current_month}</b> sont validés !<br/>
+            Voulez-vous passer au mois <b>{(closeMonthModal?.card?.current_month || 0) + 1}</b> ?
+          </p>
+        </div>
+        <p className="text-xs text-muted">
+          Le mois prochain commencera avec une grille de 31 jours vide. Le client en sera notifié.
+        </p>
+      </Modal>
     </>
   );
 }
@@ -371,17 +421,28 @@ function InfoRow({ icon: Icon, label, value }) {
   );
 }
 
-function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, onActiver }) {
+function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, onActiver, onCloseMonth }) {
   const store = useMockStore();
   const prod = store.products.find(p => p.id === card.product_id);
   const isYear = prod?.product_type === '1_an';
   const currentMonth = card.current_month || 1;
+  const totalMonths = card.total_months || 12;
+  const isLastMonth = currentMonth === totalMonths;
 
-  const days = getCardDaysForMonth(card, allDays, currentMonth, isYear);
-  const pendingCount = pending.size;
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  const isPastMonth = isYear && selectedMonth < currentMonth;
+  const isFutureMonth = isYear && selectedMonth > currentMonth;
+  const isCurrentMonth = !isYear || selectedMonth === currentMonth;
+
+  const days = getCardDaysForMonth(card, allDays, selectedMonth, isYear);
+  const pendingCount = isCurrentMonth ? pending.size : 0;
   const filledCount = days.filter(d => d.filled).length;
   const finalCount = filledCount + pendingCount;
   const percent = Math.round((finalCount / days.length) * 100);
+
+  const isMonthComplete = isYear && isCurrentMonth && filledCount === 31 && pendingCount === 0;
+  const isYearComplete = isMonthComplete && isLastMonth;
 
   if (card.status === 'en_attente') {
     return (
@@ -407,13 +468,13 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
     );
   }
 
-  const isTermine = card.status === 'termine';
+  const isTermine = card.status === 'termine' || isYearComplete;
 
   return (
     <div className={cx('card flex flex-col gap-3', isTermine && 'opacity-70')}>
       <div className="flex items-start justify-between gap-2">
         <Badge color={isTermine ? 'neutral' : 'success'}>
-          {cardStatusLabel(card.status)}
+          {isYearComplete ? 'Carte terminée' : cardStatusLabel(card.status)}
         </Badge>
         <span className="text-[10px] text-muted font-mono">
           {finalCount}/{days.length}
@@ -426,9 +487,18 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
             {card.quantity > 1 ? `${card.quantity}x ` : ''}{prod?.name}
           </h4>
           {isYear && (
-            <span className="text-[10px] font-mono text-muted shrink-0">
-              M{currentMonth}/{card.total_months || 12}
-            </span>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="shrink-0 text-xs font-semibold pl-2 pr-1 py-1 rounded-lg border border-outline bg-card-light dark:bg-card-dark focus:outline-none focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark cursor-pointer"
+            >
+              {Array.from({ length: totalMonths }, (_, i) => i + 1).map(m => {
+                const done = m <= (card.months_completed || 0);
+                const isCurr = m === currentMonth;
+                const suffix = done ? ' ✓' : isCurr ? ' ●' : ' 🔒';
+                return <option key={m} value={m}>Mois {m}{suffix}</option>;
+              })}
+            </select>
           )}
         </div>
         <p className="text-xs text-muted mt-0.5">
@@ -438,13 +508,13 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
 
       <Card31
         days={days}
-        readOnly={blocked || isTermine}
+        readOnly={blocked || isTermine || isMonthComplete || !isCurrentMonth}
         compact
-        pendingDays={pending}
-        onToggle={blocked || isTermine ? null : onToggle}
+        pendingDays={isCurrentMonth ? pending : null}
+        onToggle={blocked || isTermine || isMonthComplete || !isCurrentMonth ? null : onToggle}
       />
 
-      {!blocked && !isTermine && (
+      {!blocked && !isTermine && !isMonthComplete && isCurrentMonth && (
         <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-muted mt-1 px-1">
           <div className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
@@ -469,13 +539,32 @@ function EditableCard({ card, allDays, blocked, pending, onToggle, onValider, on
 
       <ProgressBar value={percent} />
 
-      <Button
-        className="w-full text-sm"
-        disabled={blocked || pendingCount === 0}
-        onClick={onValider}
-      >
-        <Check size={16} /> Valider les mises {pendingCount > 0 && `(${pendingCount})`}
-      </Button>
+      {/* Boutons d'action */}
+      {isCurrentMonth ? (
+        isMonthComplete ? (
+          <Button
+            className="w-full text-sm bg-secondary-light dark:bg-secondary-dark hover:bg-secondary-light/90"
+            onClick={onCloseMonth}
+            disabled={blocked || isYearComplete}
+          >
+            {isYearComplete ? 'Carte terminée' : (
+              <><ArrowRight size={16} /> Clôturer et passer au mois {currentMonth + 1}</>
+            )}
+          </Button>
+        ) : (
+          <Button
+            className="w-full text-sm"
+            disabled={blocked || pendingCount === 0}
+            onClick={onValider}
+          >
+            <Check size={16} /> Valider les mises {pendingCount > 0 && `(${pendingCount})`}
+          </Button>
+        )
+      ) : (
+        <div className="text-xs text-center text-muted italic py-2 bg-black/5 dark:bg-white/5 rounded-lg">
+          {isPastMonth ? "Mois terminé" : "Mois futur"}
+        </div>
+      )}
     </div>
   );
 }

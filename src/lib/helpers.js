@@ -125,45 +125,47 @@ export function getCardDaysForMonth(card, allCardDays, month, isYear) {
   const current = card.current_month || 1;
   const completed = card.months_completed || 0;
 
-  // Mois courant → vrai état
-  if (month === current) return baseDays;
+  // Mois courant → On ne prend que les jours du mois courant
+  if (month === current) {
+    const daysOfMonth = baseDays.filter(d => (d.month_number || 1) === month);
+    if (daysOfMonth.length > 0) return daysOfMonth;
 
-  const now = Date.now();
-  const DAY = 86400000;
+    // Fallback de sécurité
+    return Array.from({ length: 31 }, (_, i) => ({
+      id: `v-${card.id}-m${month}-d${i + 1}`,
+      card_id: card.id,
+      month_number: month,
+      day_number: i + 1,
+      filled: false,
+      is_locked: false,
+      amount: 0,
+    }));
+  }
 
   // Mois terminé → 31 jours remplis, verrouillés
   if (month <= completed) {
-    return Array.from({ length: 31 }, (_, i) => {
-      const n = i + 1;
-      return {
-        id: `v-${card.id}-m${month}-d${n}`,
-        card_id: card.id,
-        day_number: n,
-        filled: true,
-        filled_at: new Date(now - (31 - n) * DAY).toISOString(),
-        filled_by: card.collector_id,
-        amount: card.locked_price_per_day,
-        is_locked: true,
-        virtual: true,
-      };
-    });
+    return Array.from({ length: 31 }, (_, i) => ({
+      id: `v-${card.id}-m${month}-d${i + 1}`,
+      card_id: card.id,
+      month_number: month,
+      day_number: i + 1,
+      filled: true,
+      filled_at: new Date().toISOString(),
+      is_locked: true,
+      amount: card.locked_price_per_day,
+    }));
   }
 
   // Mois futur → 31 jours vides, verrouillés
-  return Array.from({ length: 31 }, (_, i) => {
-    const n = i + 1;
-    return {
-      id: `v-${card.id}-m${month}-d${n}`,
-      card_id: card.id,
-      day_number: n,
-      filled: false,
-      filled_at: null,
-      filled_by: null,
-      amount: 0,
-      is_locked: true,
-      virtual: true,
-    };
-  });
+  return Array.from({ length: 31 }, (_, i) => ({
+    id: `v-${card.id}-m${month}-d${i + 1}`,
+    card_id: card.id,
+    month_number: month,
+    day_number: i + 1,
+    filled: false,
+    is_locked: true,
+    amount: 0,
+  }));
 }
 
 // Stats pour un mois spécifique (utile pour l'affichage)

@@ -1,13 +1,13 @@
+
 // ============================================================
 // mockStore — Alias de compatibilité vers Supabase
-// Le nom reste pour ne pas casser les imports existants.
 // ============================================================
 
 export { useData as useMockStore } from '../context/DataContext';
 
 export {
   // Cartes
-  addCard, activateCard, fillCardDays, deleteCard, // <--- Ajouté ici
+  addCard, activateCard, fillCardDays, deleteCard, closeCardMonth,
   // Notifications
   addNotification, markNotificationRead, markAllRead,
   // Secrétaire

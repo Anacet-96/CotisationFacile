@@ -92,20 +92,39 @@ export async function activateCard(cardId, activatedBy) {
   emitChange();
 }
 
-export async function fillCardDays(cardId, dayNumbers, filledBy) {
+export async function fillCardDays(cardId, monthNumber, dayNumbers, filledBy) {
   const { data: card } = await supabase.from('cards').select('locked_price_per_day').eq('id', cardId).single();
   const amount = card?.locked_price_per_day || 0;
   const now = new Date().toISOString();
 
   for (const day of dayNumbers) {
-    const { error } = await supabase.from('card_days').update({
-      filled: true, filled_at: now, filled_by: filledBy, amount,
-    }).eq('card_id', cardId).eq('day_number', day);
-    if (error) console.error('fillCardDays:', error);
+    // 1. On essaie de mettre à jour le jour
+    const { data, error } = await supabase.from('card_days')
+      .update({ filled: true, filled_at: now, filled_by: filledBy, amount, is_locked: false })
+      .eq('card_id', cardId)
+      .eq('month_number', monthNumber)
+      .eq('day_number', day)
+      .select();
+
+    if (error) console.error('fillCardDays update:', error);
+    
+    // 2. Si le jour n'existe pas en base, on l'insère
+    if (!data || data.length === 0) {
+      const { error: insertError } = await supabase.from('card_days').insert({
+        card_id: cardId,
+        month_number: monthNumber,
+        day_number: day,
+        filled: true,
+        filled_at: now,
+        filled_by: filledBy,
+        amount,
+        is_locked: false
+      });
+      if (insertError) console.error('fillCardDays insert:', insertError);
+    }
   }
   emitChange();
 }
-
 // ============================================================
 // NOTIFICATIONS
 // ============================================================
@@ -137,15 +156,18 @@ export async function validateDay(collectorId, dateStr, validatedBy, totalAmount
   });
   if (error) { console.error('validateDay:', error); return; }
 
-  // Verrouiller les card_days du jour
   const { data: cards } = await supabase.from('cards').select('id').eq('collector_id', collectorId);
   const cardIds = (cards || []).map(c => c.id);
   if (cardIds.length) {
+    const start = `${dateStr}T00:00:00.000Z`;
+    const end = `${dateStr}T23:59:59.999Z`;
+
     await supabase.from('card_days')
       .update({ is_locked: true })
       .in('card_id', cardIds)
-      .gte('filled_at', `${dateStr}T00:00:00`)
-      .lte('filled_at', `${dateStr}T23:59:59`);
+      .eq('filled', true)
+      .gte('filled_at', start)
+      .lte('filled_at', end);
   }
 
   // Notifier le collecteur
@@ -364,6 +386,43 @@ export async function deleteCard(cardId) {
 
   if (error) {
     console.error('deleteCard:', error);
+    return { error: error.message };
+  }
+  emitChange();
+  return { success: true };
+}
+
+
+// ============================================================
+// CARDS — CLÔTURER UN MOIS (Produits 1 an)
+// ============================================================
+export async function closeCardMonth(cardId, completedMonth, nextMonth) {
+  // S'assurer que les 31 jours du mois suivant existent en base
+  const daysToInsert = [];
+  for (let i = 1; i <= 31; i++) {
+    daysToInsert.push({
+      card_id: cardId,
+      month_number: nextMonth,
+      day_number: i,
+      filled: false,
+      is_locked: false,
+      amount: 0
+    });
+  }
+  
+  await supabase.from('card_days').upsert(daysToInsert, { onConflict: 'card_id,month_number,day_number' });
+
+  // Mettre à jour la carte
+  const { error } = await supabase
+    .from('cards')
+    .update({
+      months_completed: completedMonth,
+      current_month: nextMonth,
+    })
+    .eq('id', cardId);
+
+  if (error) {
+    console.error('closeCardMonth:', error);
     return { error: error.message };
   }
   emitChange();
