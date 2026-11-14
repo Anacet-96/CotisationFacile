@@ -22,13 +22,13 @@ export async function fetchAllData() {
   ] = await Promise.all([
     supabase.from('products').select('*').order('created_at'),
     supabase.from('kit_items').select('*').order('created_at'),
-    supabase.from('notifications').select('*').order('created_at', { ascending: false }),
-    supabase.from('cards').select('*').order('created_at', { ascending: false }),
-    supabase.from('card_days').select('*').order('day_number'),
-    supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-    supabase.from('daily_validations').select('*').order('date', { ascending: false }),
-    supabase.from('custom_orders').select('*').order('created_at', { ascending: false }),
-    supabase.from('profile_change_requests').select('*').order('created_at', { ascending: false }),
+    supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(1000),
+    supabase.from('cards').select('*').order('created_at', { ascending: false }).limit(5000),
+    supabase.from('card_days').select('*').order('day_number').limit(50000), // <-- LIMITE AUGMENTÉE
+    supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(5000),
+    supabase.from('daily_validations').select('*').order('date', { ascending: false }).limit(5000),
+    supabase.from('custom_orders').select('*').order('created_at', { ascending: false }).limit(1000),
+    supabase.from('profile_change_requests').select('*').order('created_at', { ascending: false }).limit(1000),
   ]);
 
   const all = [productsRes, kitItemsRes, notifsRes, cardsRes, cardDaysRes, usersRes, validationsRes, ordersRes, requestsRes];

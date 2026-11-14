@@ -117,55 +117,64 @@ export function filterByPeriod(items, period) {
 // - Mois courant (= current_month) : les vrais card_days
 // - Mois futur (> current_month) : 31 jours vides, verrouillés
 // ============================================================
+// ============================================================
+// Carte 1 an — Retourne les 31 jours correspondant au mois demandé
+// ============================================================
 export function getCardDaysForMonth(card, allCardDays, month, isYear) {
-  const baseDays = allCardDays.filter(d => d.card_id === card.id);
-
-  if (!isYear) return baseDays;
+  if (!isYear) {
+    const baseDays = allCardDays.filter(d => d.card_id === card.id);
+    const map = new Map(baseDays.map(d => [d.day_number, d]));
+    
+    // On force 31 jours, même si la base en a moins
+    return Array.from({ length: 31 }, (_, i) => {
+      const n = i + 1;
+      return map.get(n) || {
+        id: `v-${card.id}-d${n}`, card_id: card.id, day_number: n,
+        filled: false, is_locked: false, amount: 0,
+      };
+    });
+  }
 
   const current = card.current_month || 1;
   const completed = card.months_completed || 0;
 
-  // Mois courant → On ne prend que les jours du mois courant
+  // 1. Mois courant → On prend les jours du mois
   if (month === current) {
-    const daysOfMonth = baseDays.filter(d => (d.month_number || 1) === month);
-    if (daysOfMonth.length > 0) return daysOfMonth;
+    const daysOfMonth = allCardDays.filter(
+      d => d.card_id === card.id && (d.month_number || 1) === month
+    );
+    const map = new Map(daysOfMonth.map(d => [d.day_number, d]));
 
-    // Fallback de sécurité
-    return Array.from({ length: 31 }, (_, i) => ({
-      id: `v-${card.id}-m${month}-d${i + 1}`,
-      card_id: card.id,
-      month_number: month,
-      day_number: i + 1,
-      filled: false,
-      is_locked: false,
-      amount: 0,
-    }));
+    // On force 31 jours, même si la base en a moins
+    return Array.from({ length: 31 }, (_, i) => {
+      const n = i + 1;
+      return map.get(n) || {
+        id: `v-${card.id}-m${month}-d${n}`, card_id: card.id, month_number: month,
+        day_number: n, filled: false, is_locked: false, amount: 0,
+      };
+    });
   }
 
-  // Mois terminé → 31 jours remplis, verrouillés
+  // 2. Mois terminé → 31 jours remplis, verrouillés
   if (month <= completed) {
-    return Array.from({ length: 31 }, (_, i) => ({
-      id: `v-${card.id}-m${month}-d${i + 1}`,
-      card_id: card.id,
-      month_number: month,
-      day_number: i + 1,
-      filled: true,
-      filled_at: new Date().toISOString(),
-      is_locked: true,
-      amount: card.locked_price_per_day,
-    }));
+    return Array.from({ length: 31 }, (_, i) => {
+      const n = i + 1;
+      return {
+        id: `v-${card.id}-m${month}-d${n}`, card_id: card.id, month_number: month,
+        day_number: n, filled: true, filled_at: new Date().toISOString(),
+        is_locked: true, amount: card.locked_price_per_day,
+      };
+    });
   }
 
-  // Mois futur → 31 jours vides, verrouillés
-  return Array.from({ length: 31 }, (_, i) => ({
-    id: `v-${card.id}-m${month}-d${i + 1}`,
-    card_id: card.id,
-    month_number: month,
-    day_number: i + 1,
-    filled: false,
-    is_locked: true,
-    amount: 0,
-  }));
+  // 3. Mois futur → 31 jours vides, verrouillés
+  return Array.from({ length: 31 }, (_, i) => {
+    const n = i + 1;
+    return {
+      id: `v-${card.id}-m${month}-d${n}`, card_id: card.id, month_number: month,
+      day_number: n, filled: false, is_locked: true, amount: 0,
+    };
+  });
 }
 
 // Stats pour un mois spécifique (utile pour l'affichage)

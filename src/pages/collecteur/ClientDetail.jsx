@@ -48,8 +48,8 @@ export default function ClientDetail() {
   const pendingRequests = useMemo(
     () => (client
       ? store.profileChangeRequests.filter(
-          r => r.client_id === client.id && r.status === 'en_attente'
-        )
+        r => r.client_id === client.id && r.status === 'en_attente'
+      )
       : []),
     [client, store.profileChangeRequests]
   );
@@ -57,19 +57,19 @@ export default function ClientDetail() {
   // Résumé journalier (Cartes, Mises, Livraisons)
   const todaySummary = useMemo(() => {
     if (!client) return { cards: 0, mises: 0, livraisons: 0, total: 0 };
-    
+
     const todayStr = new Date().toISOString().slice(0, 10);
     const myCardIds = clientCards.map(c => c.id);
 
-    const cardsToday = clientCards.filter(c => 
+    const cardsToday = clientCards.filter(c =>
       c.activated_at && c.activated_at.slice(0, 10) === todayStr && c.card_fee_paid
     );
     const cardsTotal = cardsToday.length * 200;
 
-    const misesToday = store.cardDays.filter(d => 
-      myCardIds.includes(d.card_id) && 
-      d.filled && 
-      d.filled_at && 
+    const misesToday = store.cardDays.filter(d =>
+      myCardIds.includes(d.card_id) &&
+      d.filled &&
+      d.filled_at &&
       d.filled_at.slice(0, 10) === todayStr
     );
     const misesTotal = misesToday.reduce((sum, d) => sum + (d.amount || 0), 0);
@@ -331,7 +331,7 @@ export default function ClientDetail() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clientCards.map(card => (
             <EditableCard
-              key={`${card.id}-${card.current_month}`}
+              key={card.id}
               card={card}
               allDays={store.cardDays}
               blocked={blocked}
@@ -397,7 +397,7 @@ export default function ClientDetail() {
             <Sparkles size={22} className="text-primary-light dark:text-primary-dark" />
           </div>
           <p className="text-sm">
-            Félicitations, les 31 jours du mois <b>{closeMonthModal?.card?.current_month}</b> sont validés !<br/>
+            Félicitations, les 31 jours du mois <b>{closeMonthModal?.card?.current_month}</b> sont validés !<br />
             Voulez-vous passer au mois <b>{(closeMonthModal?.card?.current_month || 0) + 1}</b> ?
           </p>
         </div>
